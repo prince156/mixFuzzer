@@ -21,6 +21,7 @@ void HttpServThread::ThreadMain()
 	if (sServer == INVALID_SOCKET)
 	{
 		m_glogger.error(TEXT("accept failed with error: %d"), WSAGetLastError());
+		m_state = THREAD_STATE::STOPPED;
 		return;
 	}
 	char receiveMessage[1024];
@@ -29,6 +30,7 @@ void HttpServThread::ThreadMain()
 	{
 		m_glogger.error(TEXT("recv failed with error: %d"), WSAGetLastError());
 		closesocket(sServer);
+		m_state = THREAD_STATE::STOPPED;
 		return;
 	} 
 

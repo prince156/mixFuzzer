@@ -88,7 +88,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\common;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\common;..\edgeDbg;..\kill;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -103,6 +103,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\..\common;..\edgeDbg;..\kill;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -157,6 +158,21 @@
   <ItemGroup>
     <ClInclude Include="..\..\common\glogger2.h" />
     <ClInclude Include="..\..\common\gthread.h" />
+    <ClInclude Include="..\edgeDbg\fhActivateMicrosoftEdge.h" />
+    <ClInclude Include="..\edgeDbg\fhRunDebugger.h" />
+    <ClInclude Include="..\edgeDbg\fhShowProcessIdsAndSuspendThreadsForExecutableName.h" />
+    <ClInclude Include="..\edgeDbg\fhSuspendThreadsInProcessById.h" />
+    <ClInclude Include="..\edgeDbg\fhTerminateAllRelevantProcesses.h" />
+    <ClInclude Include="..\edgeDbg\fhWaitAndGetProcessIdForExecutableName.h" />
+    <ClInclude Include="..\edgeDbg\fReplaceAll.h" />
+    <ClInclude Include="..\edgeDbg\fuEdgeDbg.h" />
+    <ClInclude Include="..\kill\fbCloseHandleAndUpdateResult.h" />
+    <ClInclude Include="..\kill\fhGetProcessIdForExecutableName.h" />
+    <ClInclude Include="..\kill\fhGetSnapshot.h" />
+    <ClInclude Include="..\kill\fhProcessExistsForId.h" />
+    <ClInclude Include="..\kill\fhTerminateAllProcessesForExecutableName.h" />
+    <ClInclude Include="..\kill\fhTerminateProcessForId.h" />
+    <ClInclude Include="..\kill\fuKill.h" />
     <ClInclude Include="htmlGenThread.h" />
     <ClInclude Include="httpServThread.h" />
   </ItemGroup>

@@ -22,13 +22,19 @@ public:
 private:
 	PHTMLGEN_THREAD_PARA m_para;
 	char* m_htmlTempl;
+	char* m_prevHtml;
+	int m_headLen;
 
-	vector<vector<string>> ufile;
+	vector<vector<string>> m_ufile;
+
+public:
+	char* GetPrevHtml();
 
 private:
 	void ThreadMain();
 
 	void Init();
-	string GetRandomLine(string file);
+	void GenerateTempl(char* src, char* dst);
+	string GetRandomLine_u(int id);
 };
 

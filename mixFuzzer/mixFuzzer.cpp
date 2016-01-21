@@ -3,26 +3,62 @@
 #include <Windows.h>
 #include <cstdio>
 #include <conio.h>
+#include <Shobjidl.h>
+#include <tlhelp32.h>
 #include "tstream.h"
 
 #include "common.h"
 #include "httpServThread.h"
 #include "htmlGenThread.h"
 
+typedef HRESULT(NTAPI *tNtSuspendProcess)(IN HANDLE);
+tNtSuspendProcess _NtSuspendProcess;
+typedef BOOL(WINAPI *tIsWow64Process)(HANDLE, PBOOL);
+tIsWow64Process _IsWow64Process;
+
+const TCHAR* sAUMID = TEXT("Microsoft.MicrosoftEdge_8wekyb3d8bbwe!MicrosoftEdge");
+const TCHAR* sMicrosoftEdgeExecutable = TEXT("MicrosoftEdge.exe");
+const TCHAR* sBrowserBrokerExecutable = TEXT("browser_broker.exe");
+const TCHAR* sRuntimeBrokerExecutable = TEXT("RuntimeBroker.exe");
+const TCHAR* sMicrosoftEdgeCPExecutable = TEXT("MicrosoftEdgeCP.exe");
+
+#include "fhGetSnapshot.h"
+#include "fbCloseHandleAndUpdateResult.h"
+#include "fhGetProcessIdForExecutableName.h"
+#include "fhProcessExistsForId.h"
+#include "fhTerminateProcessForId.h"
+#include "fhTerminateAllProcessesForExecutableName.h"
+
+#include "fhWaitAndGetProcessIdForExecutableName.h"
+#include "fhSuspendThreadsInProcessById.h"
+#include "fhShowProcessIdsAndSuspendThreadsForExecutableName.h"
+#include "fReplaceAll.h"
+#include "fhRunDebugger.h"
+#include "fhTerminateAllRelevantProcesses.h"
+#include "fhActivateMicrosoftEdge.h"
+#include "fuEdgeDbg.h"
+
 using namespace std;
 using namespace gcommon;
 
 GLogger2 glogger;
-
 tstring GetCurrentDirPath();
+int GetDebugInfo(HANDLE hPipe, char* buff, int size);
+tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
+bool CheckCCInt3(char* buff);
+bool CheckC3Ret(char* buff);
 
 int _tmain(int argc, TCHAR** argv)
 {
 	const uint16_t LISTEN_PORT = 12228;
 	const uint32_t BUFF_SIZE = 1024 * 100;
 
-	char* htmlBuff = new char[BUFF_SIZE];
-	char* htmlTempl = new char[BUFF_SIZE];
+	char* htmlBuff = new char[BUFF_SIZE+1]; // http packet buff
+	char* htmlTempl = new char[BUFF_SIZE+1]; // html template buff
+	tstring symPath = TEXT("I:\\symbols\\win10");
+	const tstring crashDir = TEXT("crash");
+	tstring htmlPath;
+	tstring logPath;
 
 	PRINT_TARGET print_target = PRINT_TARGET::BOTH;
 	int debug_level = 0;
@@ -35,6 +71,24 @@ int _tmain(int argc, TCHAR** argv)
 	glogger.setLogFile(log_file);
 	glogger.setTarget(print_target);
 
+	// 创建debug Pipe
+	HANDLE inputPipeR, inputPipeW;
+	HANDLE outputPipeR, outputPipeW;
+	SECURITY_ATTRIBUTES saAttr;
+	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+	saAttr.bInheritHandle = TRUE;
+	saAttr.lpSecurityDescriptor = NULL;
+	if (!CreatePipe(&inputPipeR, &inputPipeW, &saAttr, 0))
+	{
+		glogger.error(TEXT("failed to create pipe"));
+		exit(_getch());
+	}
+	if (!CreatePipe(&outputPipeR, &outputPipeW, &saAttr, 0))
+	{
+		glogger.error(TEXT("failed to create pipe"));
+		exit(_getch());
+	}
+
 	// 获取当前文件夹路径		
 	tstring currentDir = GetCurrentDirPath();
 	if (currentDir.empty())
@@ -44,6 +98,13 @@ int _tmain(int argc, TCHAR** argv)
 	}
 	SetCurrentDirectory(currentDir.c_str());
 
+	// 创建crash目录
+	CreateDirectory(crashDir.c_str(), NULL);
+	htmlPath.assign(currentDir);
+	htmlPath.append(crashDir);
+	htmlPath.append(TEXT("\\"));
+	logPath.assign(htmlPath);
+
 	// 读取模板文件
 	FILE* ftempl;
 	errno_t err = fopen_s(&ftempl, "template.html", "r");
@@ -52,13 +113,13 @@ int _tmain(int argc, TCHAR** argv)
 		glogger.error(TEXT("failed to open template.html"));
 		exit(_getch());
 	}
-	size_t nread = fread_s(htmlTempl, BUFF_SIZE, 1, BUFF_SIZE - 1, ftempl);
-	if (nread == 0)
+	size_t tmplsize = fread_s(htmlTempl, BUFF_SIZE, 1, BUFF_SIZE - 1, ftempl);
+	if (tmplsize == 0)
 	{
 		glogger.error(TEXT("failed to read template.html"));
 		exit(_getch());
 	}
-	htmlTempl[nread] = 0;
+	htmlTempl[tmplsize] = 0;
 
 	// semaphore
 	HANDLE semaphorep = CreateSemaphore(NULL, 1, 1, TEXT("mixfuzzer_sem_htmlbuff_p"));
@@ -92,22 +153,318 @@ int _tmain(int argc, TCHAR** argv)
 		exit(_getch());
 	}
 
-	// 启动浏览器
-	STARTUPINFO si = { sizeof(STARTUPINFO) };
-	PROCESS_INFORMATION pi;
-	si.dwFlags = STARTF_USESHOWWINDOW;
-	si.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
-	TCHAR cmdline[1024];
-	_stprintf_s(cmdline, TEXT("explorer Microsoft-Edge:http://localhost:%d"),LISTEN_PORT);
-	BOOL bRet = CreateProcess(NULL, cmdline,
-		NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi);
-	if (!bRet)
+	DWORD nwrite,nread;
+	uint32_t buffsize = 1024;
+	char* rbuff = new char[buffsize+1];
+	char* pbuff = new char[2*buffsize+1];	
+	while (true)
 	{
-		_tprintf(TEXT("error: %d"),GetLastError());
-		exit(_getch());
-	}   
+		glogger.screen(TEXT("\n\n"));
+		glogger.info(TEXT("Start Fuzzing ..."));
 
+		nread = nwrite = 0;
+
+		// kill Edge所有线程
+		fhTerminateAllProcessesForExecutableName(TEXT("cdb.exe"));
+		fhTerminateAllProcessesForExecutableName(sMicrosoftEdgeExecutable);
+		Sleep(100);
+
+		// 启动浏览器
+		STARTUPINFO si_edge = { sizeof(STARTUPINFO) };
+		PROCESS_INFORMATION pi_edge;
+		si_edge.dwFlags = STARTF_USESHOWWINDOW;
+		si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
+		TCHAR cmdline[1024];
+		_stprintf_s(cmdline, TEXT("explorer Microsoft-Edge:http://localhost:%d"), LISTEN_PORT);
+		BOOL bRet = CreateProcess(NULL, cmdline,
+			NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
+		if (!bRet)
+		{
+			glogger.error(TEXT("start edge error: %d"), GetLastError());
+			exit(_getch());
+		}
+
+		// 获取PID
+		DWORD dwMicrosoftEdge_PID;
+		DWORD dwMicrosoftEdgeCP_PID;
+		DWORD dwRuntimeBroker_PID;
+		DWORD dwBrowserBroker_PID;
+		BOOL bProcessFound;
+		HRESULT hResult = fhWaitAndGetProcessIdForExecutableName(sMicrosoftEdgeCPExecutable, dwMicrosoftEdgeCP_PID);
+		if (!SUCCEEDED(hResult))
+			continue;
+		hResult = fhGetProcessIdForExecutableName(sMicrosoftEdgeExecutable, dwMicrosoftEdge_PID, bProcessFound);
+		if (!SUCCEEDED(hResult))
+			continue;
+		hResult = fhGetProcessIdForExecutableName(sRuntimeBrokerExecutable, dwRuntimeBroker_PID, bProcessFound);
+		if (!SUCCEEDED(hResult))
+			continue;
+		hResult = fhGetProcessIdForExecutableName(sBrowserBrokerExecutable, dwBrowserBroker_PID, bProcessFound);
+		if (!SUCCEEDED(hResult))
+			continue;
+
+		// attach调试器	
+		tstring sCommandLine = TEXT("cdb.exe");
+		sCommandLine.append(TEXT(" -o -p "));
+		sCommandLine += to_tstring(dwMicrosoftEdgeCP_PID);
+		
+		glogger.info(TEXT("Starting %s"), sCommandLine.c_str());
+		STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
+		si_cdb.dwFlags |= STARTF_USESTDHANDLES;
+		si_cdb.hStdInput = inputPipeR;
+		si_cdb.hStdOutput = outputPipeW;
+		si_cdb.hStdError = outputPipeW;
+		//si_cdb.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+		//si_cdb.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+		//si_cdb.hStdError = GetStdHandle(STD_OUTPUT_HANDLE);
+		PROCESS_INFORMATION pi_cdb = {};
+		if (!CreateProcess(NULL, (LPWSTR)sCommandLine.c_str(),
+			NULL, NULL, TRUE, 0, NULL, NULL, &si_cdb, &pi_cdb))
+		{
+			glogger.warning(TEXT("Cannot start debugger (error %d)."), GetLastError());
+			hResult = HRESULT_FROM_WIN32(GetLastError());
+			continue;
+		}
+
+		// 设置symbol path
+		sCommandLine = TEXT(".sympath ");
+		sCommandLine.append(symPath);
+		sCommandLine.append(TEXT("\n"));
+		WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
+		WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+
+		pbuff[0] = 0;
+		while (true)
+		{
+			nread = GetDebugInfo(outputPipeR, rbuff, buffsize);			
+			if (nread == buffsize)
+			{
+				memcpy(pbuff, rbuff, nread);
+				pbuff[nread] = 0;
+				continue;
+			}
+			else if (nread > 0)
+			{			
+				memcpy(pbuff + strlen(pbuff), rbuff, nread+1);
+			}
+
+			int pbufflen = strlen(pbuff);
+			if (pbufflen < 2)
+			{
+				pbuff[0] = 0;
+				continue;
+			}
+
+			if (pbuff[pbufflen-2] == '>' && pbuff[pbufflen - 1] == ' ')
+			{
+				// No runnable debuggees
+				if (strstr(pbuff, "No runnable debuggees") != NULL)
+				{
+					break;
+				}
+
+				// 进程异常
+				if (CheckC3Ret(pbuff))
+				{					
+					//break;
+				}
+
+				// 软件中断，g
+				if (CheckCCInt3(pbuff))
+				{					
+					WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+					pbuff[0] = 0;
+					continue;
+				}
+
+				// 判定为crash 
+				glogger.warning(TEXT("find crash !!"));
+				char* poc = htmlGenThread.GetPrevHtml();
+				
+				// 生成文件名
+				TCHAR filename[11];
+				time_t ct = time(NULL);
+				_itot(ct, filename, 10);
+
+				// 获取崩溃位置作为目录名
+				tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
+				tstring module = crashpos.substr(0, crashpos.find_first_of('_'));
+				htmlPath.append(crashpos);
+				htmlPath.append(TEXT("\\"));
+				CreateDirectory(htmlPath.c_str(), NULL);
+				glogger.info(TEXT("crash = %s"),crashpos.c_str());
+
+				// 补全文件名
+				htmlPath.append(filename);
+				htmlPath.append(TEXT(".html"));
+				logPath.assign(htmlPath);
+				logPath.append(TEXT(".log"));
+
+				// 写入html文件
+				HANDLE hHtmlFile = 
+					CreateFile(htmlPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+				WriteFile(hHtmlFile, poc, strlen(poc), &nwrite, 0);
+				CloseHandle(hHtmlFile);
+
+				// 写入log文件
+				HANDLE hLogFile =
+					CreateFile(logPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+				WriteFile(hLogFile, "*** mixFuzzer ***\n", 18, &nwrite, 0);
+				WriteFile(inputPipeW, "r\n", 2, &nwrite, NULL);
+				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize)> 0)
+					WriteFile(hLogFile, pbuff, strlen(pbuff), &nwrite, 0);
+				WriteFile(hLogFile, "\n\n*** stack tracing ***\n", 24, &nwrite, 0);
+				WriteFile(inputPipeW, "kb\n", 3, &nwrite, NULL);
+				while (GetDebugInfo(outputPipeR, rbuff, buffsize) > 0)
+				{
+					WriteFile(hLogFile, rbuff, strlen(rbuff), &nwrite, 0);
+				}				
+				WriteFile(hLogFile, "\n\n*** module info ***\n", 22, &nwrite, 0);
+				sCommandLine = TEXT("lmDvm ");
+				sCommandLine.append(module);
+				sCommandLine.append(TEXT("\n"));
+				WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
+				if(GetDebugInfo(outputPipeR, pbuff, 2*buffsize)> 0)
+					WriteFile(hLogFile, pbuff, strlen(pbuff), &nwrite, 0);
+				
+				CloseHandle(hLogFile);
+
+				break;
+			}
+			
+			pbuff[0] = 0;
+			Sleep(100);
+		}
+	}
+
+	
+	delete[] rbuff;
 	exit(_getch());
+}
+
+tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
+{
+	DWORD nwrite,nread;
+	char rbuff[1024+1];
+	WriteFile(hinPipeW, "u eip L1\n", 9, &nwrite, NULL);
+	nread = GetDebugInfo(houtPipeR, rbuff, 1024);
+	if (nread == 0)
+		return tstring(TEXT("unknown"));
+	
+	size_t i = 0, start = 0;
+	for (i = 0; i < strlen(rbuff); i++)
+	{
+		if (rbuff[i] == '!')
+		{
+			while (i > 0 && rbuff[--i] != '\n');
+			start = i;
+			break;
+		}
+	}
+
+	if (i!=start)
+	{
+		return tstring(TEXT("nosymbol"));
+	}
+
+	for (i = start; i < strlen(rbuff); i++)
+	{
+		if (rbuff[i] == ':')
+		{
+			rbuff[i] = '_';
+		}
+
+		if (rbuff[i] == '!')
+		{
+			rbuff[i] = '_';
+		}
+
+		if (rbuff[i] == '\n')
+		{
+			rbuff[i-1] = 0;
+		}
+	}
+
+	return StringToWString(string(rbuff+start));
+}
+
+bool CheckCCInt3(char* buff)
+{
+	// cc	int 3
+	char* pcc = strstr(buff, " cc ");
+	if (pcc == NULL)
+		return false;
+
+	char* pint = strstr(pcc, " int ");
+	if (pint == NULL)
+		return false;
+	for (size_t i = 0; i < pint-pcc-4; i++)
+	{
+		if (pcc[i + 4] != ' ')
+			return false;
+	}
+
+	char* p3 = strstr(pint, " 3\n");
+	if (p3 == NULL)
+		return false;
+	for (size_t i = 0; i < p3 - pint - 5; i++)
+	{
+		if (pint[i + 5] != ' ')
+			return false;
+	}
+
+	return true;
+}
+
+bool CheckC3Ret(char* buff)
+{
+	// c3	ret
+	char* pc3 = strstr(buff, " c3 ");
+	if (pc3 == NULL)
+		return false;
+
+	char* pret = strstr(pc3, " ret\n");
+	if (pret == NULL)
+		return false;
+	for (size_t i = 0; i < pret - pc3 - 4; i++)
+	{
+		if (pc3[i + 4] != ' ')
+			return false;
+	}
+
+	return true;
+}
+
+int GetDebugInfo(HANDLE hPipe, char* buff, int size)
+{
+	int count = 20;
+	DWORD nread = 0;
+	while (count--)
+	{
+		Sleep(100);
+		if (!PeekNamedPipe(hPipe, buff, size, &nread, 0, 0))
+		{
+			continue;
+		}
+
+		if (nread == size)
+		{
+			break;
+		}		
+	}
+
+	if (nread == 0)
+	{
+		return 0;
+	}
+
+	nread = 0;
+	ReadFile(hPipe, buff, size, &nread, NULL);
+	if (nread>0)
+	{
+		buff[nread] = 0;
+	}
+	return nread;
 }
 
 tstring GetCurrentDirPath()
