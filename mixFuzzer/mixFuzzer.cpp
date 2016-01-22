@@ -22,21 +22,9 @@ const TCHAR* sBrowserBrokerExecutable = TEXT("browser_broker.exe");
 const TCHAR* sRuntimeBrokerExecutable = TEXT("RuntimeBroker.exe");
 const TCHAR* sMicrosoftEdgeCPExecutable = TEXT("MicrosoftEdgeCP.exe");
 
-#include "fhGetSnapshot.h"
-#include "fbCloseHandleAndUpdateResult.h"
 #include "fhGetProcessIdForExecutableName.h"
-#include "fhProcessExistsForId.h"
-#include "fhTerminateProcessForId.h"
 #include "fhTerminateAllProcessesForExecutableName.h"
-
 #include "fhWaitAndGetProcessIdForExecutableName.h"
-#include "fhSuspendThreadsInProcessById.h"
-#include "fhShowProcessIdsAndSuspendThreadsForExecutableName.h"
-#include "fReplaceAll.h"
-#include "fhRunDebugger.h"
-#include "fhTerminateAllRelevantProcesses.h"
-#include "fhActivateMicrosoftEdge.h"
-#include "fuEdgeDbg.h"
 
 using namespace std;
 using namespace gcommon;
@@ -55,8 +43,10 @@ int _tmain(int argc, TCHAR** argv)
 
 	char* htmlBuff = new char[BUFF_SIZE+1]; // http packet buff
 	char* htmlTempl = new char[BUFF_SIZE+1]; // html template buff
-	tstring symPath = TEXT("I:\\symbols\\win10");
-	const tstring crashDir = TEXT("crash");
+
+	tstring configFile = TEXT("config.ini");
+	tstring symPath = TEXT("");
+	tstring outPath = TEXT("crash");
 	tstring htmlPath;
 	tstring logPath;
 
@@ -98,12 +88,17 @@ int _tmain(int argc, TCHAR** argv)
 	}
 	SetCurrentDirectory(currentDir.c_str());
 
+	// 读取config文件
+	debug_level = _ttoi(GetConfigPara(configFile, TEXT("DEBUG_LEVEL"), TEXT("0")).c_str());
+	symPath = GetConfigPara(configFile, TEXT("SYMBOL_PATH"), TEXT("srv*"));
+	outPath = GetConfigPara(configFile, TEXT("OUT_PATH"), outPath);
+
 	// 创建crash目录
-	CreateDirectory(crashDir.c_str(), NULL);
-	htmlPath.assign(currentDir);
-	htmlPath.append(crashDir);
-	htmlPath.append(TEXT("\\"));
-	logPath.assign(htmlPath);
+	CreateDirectory(outPath.c_str(), NULL);
+	if (outPath.back() != '\\')
+	{
+		outPath.append(TEXT("\\"));
+	}
 
 	// 读取模板文件
 	FILE* ftempl;
@@ -153,6 +148,7 @@ int _tmain(int argc, TCHAR** argv)
 		exit(_getch());
 	}
 
+	// fuzz循环
 	DWORD nwrite,nread;
 	uint32_t buffsize = 1024;
 	char* rbuff = new char[buffsize+1];
@@ -233,6 +229,7 @@ int _tmain(int argc, TCHAR** argv)
 		WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
 		WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
 
+		// 监听cdg循环
 		pbuff[0] = 0;
 		while (true)
 		{
@@ -278,7 +275,7 @@ int _tmain(int argc, TCHAR** argv)
 				}
 
 				// 判定为crash 
-				glogger.warning(TEXT("find crash !!"));
+				glogger.error(TEXT("!! find crash !!"));
 				char* poc = htmlGenThread.GetPrevHtml();
 				
 				// 生成文件名
@@ -289,6 +286,7 @@ int _tmain(int argc, TCHAR** argv)
 				// 获取崩溃位置作为目录名
 				tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
 				tstring module = crashpos.substr(0, crashpos.find_first_of('_'));
+				htmlPath.assign(outPath);
 				htmlPath.append(crashpos);
 				htmlPath.append(TEXT("\\"));
 				CreateDirectory(htmlPath.c_str(), NULL);

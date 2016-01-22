@@ -43,6 +43,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
+    <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -147,6 +148,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\common\common.cpp" />
     <ClCompile Include="..\..\common\glogger2.cpp" />
     <ClCompile Include="..\..\common\gthread.cpp" />
     <ClCompile Include="htmlGenThread.cpp" />
@@ -156,6 +158,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\common\common.h" />
     <ClInclude Include="..\..\common\glogger2.h" />
     <ClInclude Include="..\..\common\gthread.h" />
     <ClInclude Include="..\edgeDbg\fhActivateMicrosoftEdge.h" />
