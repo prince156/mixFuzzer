@@ -41,48 +41,59 @@ void HtmlGenThread::ThreadMain()
 }
 
 void HtmlGenThread::Init()
-{	
-	char* ufiledata = new char[m_para->buffSize];
-	string ufilestr;
-	FILE* file;
+{		
 	char* file_f = "u%d.txt";
 	char filename[10];
 	for (size_t i = 0; i < 10; i++)
 	{
 		sprintf_s(filename, file_f, i);		
-		errno_t err = fopen_s(&file, filename, "r");
-		if (err != 0)
-		{
-			continue;
-		}
-		
-		size_t nread = fread_s(ufiledata, m_para->buffSize, 1, m_para->buffSize - 1, file);
-		if (nread == 0)
-		{
-			fclose(file);
-			continue;
-		}		
-		ufiledata[nread] = 0;
-		
-		size_t start = 0;
-		size_t len = strlen(ufiledata);
-		for (size_t j = start; j < len; j++)
-		{
-			if (ufiledata[j] == '\n')
-			{
-				ufiledata[j] = '\0';
-				if(strlen(ufiledata + start) > 0)
-					m_ufile[i].push_back(string(ufiledata + start));
-				start = j + 1;
-			}
-		}
-		if (start < len)
-		{
-			if (strlen(ufiledata + start) > 0)
-				m_ufile[i].push_back(string(ufiledata + start));
-		}
-		fclose(file);
+		ReadDic(filename, m_ufile[i]);		
 	}
+	ReadDic("dic-events.txt", m_events);
+	ReadDic("dic-tags.txt", m_tags);
+}
+
+int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
+{
+	FILE* file;
+	char* ufiledata = new char[m_para->buffSize];
+	errno_t err = fopen_s(&file, dicfile, "r");
+	if (err != 0)
+	{
+		delete[] ufiledata;
+		return 0;
+	}
+
+	size_t nread = fread_s(ufiledata, m_para->buffSize, 1, m_para->buffSize - 1, file);
+	if (nread == 0)
+	{
+		fclose(file);
+		delete[] ufiledata;
+		return  0;
+	}
+	ufiledata[nread] = 0;
+
+	size_t start = 0;
+	size_t len = strlen(ufiledata);
+	for (size_t j = start; j < len; j++)
+	{
+		if (ufiledata[j] == '\n')
+		{
+			ufiledata[j] = '\0';
+			if (strlen(ufiledata + start) > 0)
+				list.push_back(string(ufiledata + start));
+			start = j + 1;
+		}
+	}
+	if (start < len)
+	{
+		if (strlen(ufiledata + start) > 0)
+			list.push_back(string(ufiledata + start));
+	}
+	fclose(file);
+
+	delete[] ufiledata;
+	return list.size();
 }
 
 void HtmlGenThread::GenerateTempl(char * src, char * dst)

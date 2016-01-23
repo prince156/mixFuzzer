@@ -5,26 +5,19 @@
 #include <conio.h>
 #include <Shobjidl.h>
 #include <tlhelp32.h>
+#include <Psapi.h>
 #include "tstream.h"
 
 #include "common.h"
 #include "httpServThread.h"
 #include "htmlGenThread.h"
 
-typedef HRESULT(NTAPI *tNtSuspendProcess)(IN HANDLE);
-tNtSuspendProcess _NtSuspendProcess;
-typedef BOOL(WINAPI *tIsWow64Process)(HANDLE, PBOOL);
-tIsWow64Process _IsWow64Process;
 
 const TCHAR* sAUMID = TEXT("Microsoft.MicrosoftEdge_8wekyb3d8bbwe!MicrosoftEdge");
 const TCHAR* sMicrosoftEdgeExecutable = TEXT("MicrosoftEdge.exe");
 const TCHAR* sBrowserBrokerExecutable = TEXT("browser_broker.exe");
 const TCHAR* sRuntimeBrokerExecutable = TEXT("RuntimeBroker.exe");
 const TCHAR* sMicrosoftEdgeCPExecutable = TEXT("MicrosoftEdgeCP.exe");
-
-#include "fhGetProcessIdForExecutableName.h"
-#include "fhTerminateAllProcessesForExecutableName.h"
-#include "fhWaitAndGetProcessIdForExecutableName.h"
 
 using namespace std;
 using namespace gcommon;
@@ -35,6 +28,8 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size);
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
 bool CheckCCInt3(char* buff);
 bool CheckC3Ret(char* buff);
+DWORD GetProcessId(LPCTSTR pszProcessName);
+bool TerminateAllProcess(LPCTSTR pszProcessName);
 
 int _tmain(int argc, TCHAR** argv)
 {
@@ -161,9 +156,16 @@ int _tmain(int argc, TCHAR** argv)
 		nread = nwrite = 0;
 
 		// kill Edge所有线程
-		fhTerminateAllProcessesForExecutableName(TEXT("cdb.exe"));
-		fhTerminateAllProcessesForExecutableName(sMicrosoftEdgeExecutable);
-		Sleep(100);
+		if (!TerminateAllProcess(TEXT("cdb.exe")))
+		{
+			glogger.error(TEXT("Cannot kill cdb, restart fuzz."));
+			continue;
+		}
+		if (!TerminateAllProcess(sMicrosoftEdgeExecutable))
+		{
+			glogger.error(TEXT("Cannot kill Edge, restart fuzz."));
+			continue;
+		}
 
 		// 启动浏览器
 		STARTUPINFO si_edge = { sizeof(STARTUPINFO) };
@@ -176,28 +178,21 @@ int _tmain(int argc, TCHAR** argv)
 			NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
 		if (!bRet)
 		{
-			glogger.error(TEXT("start edge error: %d"), GetLastError());
+			glogger.error(TEXT("Cannot start Edge."));
 			exit(_getch());
 		}
+		Sleep(1000);
 
 		// 获取PID
-		DWORD dwMicrosoftEdge_PID;
-		DWORD dwMicrosoftEdgeCP_PID;
-		DWORD dwRuntimeBroker_PID;
-		DWORD dwBrowserBroker_PID;
-		BOOL bProcessFound;
-		HRESULT hResult = fhWaitAndGetProcessIdForExecutableName(sMicrosoftEdgeCPExecutable, dwMicrosoftEdgeCP_PID);
-		if (!SUCCEEDED(hResult))
+		DWORD dwMicrosoftEdgeCP_PID = GetProcessId(sMicrosoftEdgeCPExecutable);
+		//DWORD dwMicrosoftEdge_PID = GetProcessId(sMicrosoftEdgeExecutable);
+		//DWORD dwRuntimeBroker_PID = GetProcessId(sRuntimeBrokerExecutable);
+		//DWORD dwBrowserBroker_PID = GetProcessId(sBrowserBrokerExecutable);
+		if (dwMicrosoftEdgeCP_PID == 0)
+		{
+			glogger.error(TEXT("Cannot start Edge, restart fuzz."));
 			continue;
-		hResult = fhGetProcessIdForExecutableName(sMicrosoftEdgeExecutable, dwMicrosoftEdge_PID, bProcessFound);
-		if (!SUCCEEDED(hResult))
-			continue;
-		hResult = fhGetProcessIdForExecutableName(sRuntimeBrokerExecutable, dwRuntimeBroker_PID, bProcessFound);
-		if (!SUCCEEDED(hResult))
-			continue;
-		hResult = fhGetProcessIdForExecutableName(sBrowserBrokerExecutable, dwBrowserBroker_PID, bProcessFound);
-		if (!SUCCEEDED(hResult))
-			continue;
+		}
 
 		// attach调试器	
 		tstring sCommandLine = TEXT("cdb.exe");
@@ -217,9 +212,8 @@ int _tmain(int argc, TCHAR** argv)
 		if (!CreateProcess(NULL, (LPWSTR)sCommandLine.c_str(),
 			NULL, NULL, TRUE, 0, NULL, NULL, &si_cdb, &pi_cdb))
 		{
-			glogger.warning(TEXT("Cannot start debugger (error %d)."), GetLastError());
-			hResult = HRESULT_FROM_WIN32(GetLastError());
-			continue;
+			glogger.error(TEXT("Cannot attach debugger, restart fuzz."));
+			exit(_getch());
 		}
 
 		// 设置symbol path
@@ -245,7 +239,7 @@ int _tmain(int argc, TCHAR** argv)
 				memcpy(pbuff + strlen(pbuff), rbuff, nread+1);
 			}
 
-			int pbufflen = strlen(pbuff);
+			size_t pbufflen = strlen(pbuff);
 			if (pbufflen < 2)
 			{
 				pbuff[0] = 0;
@@ -482,4 +476,81 @@ tstring GetCurrentDirPath()
 	delete[] pCurrentDir;
 
 	return strCurrentDir;
+}
+
+DWORD GetProcessId(LPCTSTR pszProcessName)
+{
+	BOOL bFound = FALSE;
+	DWORD aProcesses[1024], cbNeeded, cProcesses;
+	unsigned int i;
+
+	// Enumerate all processes
+	if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
+		return FALSE;
+
+	// Calculate how many process identifiers were returned.
+	cProcesses = cbNeeded / sizeof(DWORD);
+
+	TCHAR szEXEName[MAX_PATH] = { 0 };
+	// Loop through all process to find the one that matches
+	// the one we are looking for
+	for (i = 0; i < cProcesses; i++)
+	{
+		// Get a handle to the process
+		HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
+			PROCESS_VM_READ, FALSE, aProcesses[i]);
+
+		// Get the process name
+		if (NULL != hProcess)
+		{
+			HMODULE hMod;
+			DWORD cbNeeded;
+
+			if (EnumProcessModules(hProcess, &hMod,
+				sizeof(hMod), &cbNeeded))
+			{
+				//Get the name of the exe file
+				GetModuleBaseName(hProcess, hMod, szEXEName,
+					sizeof(szEXEName) / sizeof(TCHAR));
+
+				if (_tcsicmp(szEXEName, pszProcessName) == 0)
+				{
+					bFound = TRUE;
+					CloseHandle(hProcess);
+					break;
+				}
+			}
+			CloseHandle(hProcess);
+		}
+	}
+
+	return bFound ? aProcesses[i] : 0;
+}
+
+bool TerminateAllProcess(LPCTSTR pszProcessName)
+{
+	bool ret = false;
+	do {
+		ret = false;
+		DWORD pid = GetProcessId(pszProcessName);
+		if (pid != 0)
+		{
+			HANDLE hProcess = OpenProcess(
+				PROCESS_TERMINATE | 
+				PROCESS_QUERY_LIMITED_INFORMATION | 
+				SYNCHRONIZE, FALSE, pid);
+			if (hProcess != NULL)
+			{
+				TerminateProcess(hProcess, 0);
+				ret = true;
+			}
+		}
+	} while (ret);
+	Sleep(1000);
+
+	DWORD pid = GetProcessId(pszProcessName);
+	if (pid == 0)
+		return true;
+	else
+		return false;
 }

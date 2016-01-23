@@ -47,51 +47,6 @@
     <ClInclude Include="..\..\common\glogger2.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\edgeDbg\fhActivateMicrosoftEdge.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fhRunDebugger.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fhShowProcessIdsAndSuspendThreadsForExecutableName.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fhSuspendThreadsInProcessById.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fhTerminateAllRelevantProcesses.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fhWaitAndGetProcessIdForExecutableName.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fReplaceAll.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\edgeDbg\fuEdgeDbg.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fbCloseHandleAndUpdateResult.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fhGetProcessIdForExecutableName.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fhGetSnapshot.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fhProcessExistsForId.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fhTerminateAllProcessesForExecutableName.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fhTerminateProcessForId.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="..\kill\fuKill.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\common\common.h">
       <Filter>头文件</Filter>
     </ClInclude>

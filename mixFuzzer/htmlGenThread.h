@@ -26,6 +26,8 @@ private:
 	int m_headLen;
 
 	vector<vector<string>> m_ufile;
+	vector<string> m_events;
+	vector<string> m_tags;
 
 public:
 	char* GetPrevHtml();
@@ -34,6 +36,7 @@ private:
 	void ThreadMain();
 
 	void Init();
+	int ReadDic(const char* dicfile, vector<string>& list);
 	void GenerateTempl(char* src, char* dst);
 	string GetRandomLine_u(int id);
 };
