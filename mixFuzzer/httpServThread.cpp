@@ -28,9 +28,9 @@ void HttpServThread::ThreadMain()
 	int ret = recv(sServer, receiveMessage, 1024, 0); // Ω” ‹GET«Î«Û
 	if (ret == SOCKET_ERROR)
 	{
-		m_glogger.error(TEXT("recv failed with error: %d"), WSAGetLastError());
+		m_glogger.warning(TEXT("recv failed with error: %d"), WSAGetLastError());
 		closesocket(sServer);
-		m_state = THREAD_STATE::STOPPED;
+		//m_state = THREAD_STATE::STOPPED;
 		return;
 	} 
 
