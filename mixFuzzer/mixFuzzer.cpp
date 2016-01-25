@@ -6,6 +6,7 @@
 #include <Shobjidl.h>
 #include <tlhelp32.h>
 #include <Psapi.h>
+#include <io.h>
 #include "tstream.h"
 
 #include "common.h"
@@ -13,7 +14,7 @@
 #include "htmlGenThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v0.3")
+#define SOFT_VER TEXT("v0.4")
 #define SOFT_LOGO TEXT(\
 	"================================================================================\n"\
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
@@ -36,6 +37,7 @@ bool CheckCCInt3(char* buff);
 bool CheckC3Ret(char* buff);
 DWORD GetProcessId(LPCTSTR pszProcessName);
 bool TerminateAllProcess(LPCTSTR pszProcessName);
+uint32_t GetFilecountInDir(tstring dir, tstring fileext);
 
 int _tmain(int argc, TCHAR** argv)
 {
@@ -43,6 +45,7 @@ int _tmain(int argc, TCHAR** argv)
 	const uint32_t BUFF_SIZE = 1024 * 100;
 	const uint32_t FUZZ_TIMEOUT = 3000;
 	const uint32_t READ_DBGINFO_TIMEOUT = 1000;
+	const uint32_t MAX_POC_COUNT = 5;
 
 	char* htmlBuff = new char[BUFF_SIZE+1]; // http packet buff
 	char* htmlTempl = new char[BUFF_SIZE+1]; // html template buff
@@ -56,6 +59,7 @@ int _tmain(int argc, TCHAR** argv)
 	PRINT_TARGET print_target = PRINT_TARGET::BOTH;
 	int debug_level = 0;
 	tstring log_file = TEXT("mixfuzz.log");
+	tstring mode = TEXT("autofuzz");
 
 	// 初始化glogger	
 	glogger.setDebugLevel(debug_level);
@@ -102,8 +106,9 @@ int _tmain(int argc, TCHAR** argv)
 	debug_level = _ttoi(GetConfigPara(currentDir+configFile, TEXT("DEBUG_LEVEL"), TEXT("0")).c_str());
 	symPath = GetConfigPara(currentDir+configFile, TEXT("SYMBOL_PATH"), symPath);
 	outPath = GetConfigPara(currentDir+configFile, TEXT("OUT_PATH"), outPath);
-	glogger.info(TEXT("symbol path: %s"), symPath.c_str());
-	glogger.info(TEXT(" ouput path: %s"), outPath.c_str());
+	mode = GetConfigPara(currentDir + configFile, TEXT("MODE"), mode);
+	glogger.info(TEXT("symbol path: ") + symPath);
+	glogger.info(TEXT(" ouput path: ") + outPath);
 
 	// 创建crash目录
 	CreateDirectory(outPath.c_str(), NULL);
@@ -114,18 +119,18 @@ int _tmain(int argc, TCHAR** argv)
 
 	// 读取模板文件
 	FILE* ftempl;
-	errno_t err = fopen_s(&ftempl, "template.html", "r");
-	if (err != 0)
+	if (fopen_s(&ftempl, "template.html", "r") != 0)
 	{
 		glogger.error(TEXT("failed to open template.html"));
 		exit(_getch());
 	}
 	size_t tmplsize = fread_s(htmlTempl, BUFF_SIZE, 1, BUFF_SIZE - 1, ftempl);
+	fclose(ftempl);
 	if (tmplsize == 0)
 	{
 		glogger.error(TEXT("failed to read template.html"));
 		exit(_getch());
-	}
+	}	
 	htmlTempl[tmplsize] = 0;
 
 	// semaphore
@@ -153,11 +158,22 @@ int _tmain(int argc, TCHAR** argv)
 	htmlGenPara.semHtmlbuff_c = semaphorec;
 	htmlGenPara.semHtmlbuff_p = semaphorep;
 	htmlGenPara.port = LISTEN_PORT;
+	if (mode == TEXT("webserver"))
+		htmlGenPara.autoFuzz = false;
 	HtmlGenThread htmlGenThread(&htmlGenPara);
 	if (!htmlGenThread.Run())
 	{
 		glogger.error(TEXT("failed to create [HtmlGen] thread"));
 		exit(_getch());
+	}
+
+	if (mode == TEXT("webserver"))
+	{
+		glogger.info(TEXT("webserver mode, listening at port: %d"), LISTEN_PORT);
+		while (true)
+		{
+			Sleep(100);
+		}
 	}
 
 	// fuzz循环
@@ -218,7 +234,7 @@ int _tmain(int argc, TCHAR** argv)
 		sCommandLine.append(TEXT(" -o -p "));
 		sCommandLine += to_tstring(dwMicrosoftEdgeCP_PID);
 		
-		glogger.info(TEXT("Attach %s"), sCommandLine.c_str());
+		glogger.info(TEXT("Attach ") + sCommandLine);
 		STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
 		si_cdb.dwFlags |= STARTF_USESTDHANDLES;
 		si_cdb.hStdInput = inputPipeR;
@@ -273,7 +289,7 @@ int _tmain(int argc, TCHAR** argv)
 				idletime += READ_DBGINFO_TIMEOUT;
 				if (idletime >= FUZZ_TIMEOUT)
 				{
-					glogger.warning(TEXT("Edge seems dead, restart now ..."));
+					glogger.warning(TEXT("Edge seems dead, restart fuzz ..."));
 					break;
 				}
 				continue;
@@ -320,7 +336,12 @@ int _tmain(int argc, TCHAR** argv)
 				htmlPath.append(crashpos);
 				htmlPath.append(TEXT("\\"));
 				CreateDirectory(htmlPath.c_str(), NULL);
-				glogger.info(TEXT("crash = %s"),crashpos.c_str());
+				glogger.info(TEXT("crash = ") + crashpos);
+				if (GetFilecountInDir(htmlPath, TEXT("html")) >= MAX_POC_COUNT)
+				{
+					glogger.warning(TEXT("this crash already logged, restart fuzz ..."));
+					break;
+				}
 				glogger.info(TEXT("create html and log ..."));
 
 				// 补全文件名
@@ -379,9 +400,9 @@ int _tmain(int argc, TCHAR** argv)
 			pbuff[0] = 0;
 		}
 	}
-
-	
+		
 	delete[] rbuff;
+	delete[] pbuff;
 	exit(_getch());
 }
 
@@ -604,4 +625,32 @@ bool TerminateAllProcess(LPCTSTR pszProcessName)
 		return true;
 	else
 		return false;
+}
+
+uint32_t GetFilecountInDir(tstring dir, tstring fileext)
+{
+	_tfinddata_t FileInfo;
+	tstring strfind = dir + TEXT("\\*.") + fileext;
+	intptr_t hh = _tfindfirst(strfind.c_str(), &FileInfo);
+	int count = 0;
+
+	if (hh == -1L)
+	{
+		return count;
+	}
+
+	do {
+		//判断是否有子目录
+		if (FileInfo.attrib & _A_SUBDIR)
+		{
+			continue;
+		}
+		else
+		{
+			count++;
+		}
+	} while (_tfindnext(hh, &FileInfo) == 0);
+
+	_findclose(hh);
+	return count;
 }

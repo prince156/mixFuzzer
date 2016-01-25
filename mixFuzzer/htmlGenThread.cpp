@@ -1,3 +1,5 @@
+#include <io.h>
+
 #include "htmlGenThread.h"
 #include "common.h"
 
@@ -13,9 +15,7 @@ HtmlGenThread::HtmlGenThread(PHTMLGEN_THREAD_PARA para)
 	m_prevprevHtml = new char[m_para->buffSize + 1];
 	m_prevHtml[0] = 0;
 	m_prevprevHtml[0] = 0;
-	strcpy_s(m_htmlTempl, m_para->buffSize,
-		"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n");
-	m_headLen = strlen(m_htmlTempl);
+	m_htmlTempl[0] = 0;
 	m_ufile.resize(10);
 	Init();
 }
@@ -34,9 +34,9 @@ void HtmlGenThread::ThreadMain()
 {
 	static int count = 0;
 	strcpy(m_prevprevHtml, m_prevHtml);
-	strcpy(m_prevHtml, m_htmlTempl + m_headLen);
-	GenerateTempl(m_para->htmlTempl, m_htmlTempl+ m_headLen);
-	GenerateTempl(m_htmlTempl+ m_headLen, m_htmlTempl+ m_headLen);
+	strcpy(m_prevHtml, m_htmlTempl);
+	GenerateTempl(m_para->htmlTempl, m_htmlTempl);
+	GenerateTempl(m_htmlTempl, m_htmlTempl);
 
 	if (WAIT_OBJECT_0 != WaitForSingleObject(m_para->semHtmlbuff_p, INFINITE))
 		return;
@@ -56,43 +56,94 @@ void HtmlGenThread::Init()
 	ReadDic("dic\\events.txt", m_events);
 	ReadDic("dic\\event-functions.txt", m_evfunctions);
 	ReadDic("dic\\tags.txt", m_tags);
-	ReadDic("dic\\values.txt", m_values);
 	if (m_events.empty())
 		m_events.push_back("onresize");
 	if (m_tags.empty())
 		m_tags.push_back("table");
-	if (m_values.empty())
-		m_values.push_back("0");
 	
-	file_f = "dic\\attributes-%s.txt";
-	for each (string tag in m_tags)
-	{
-		vector<string> attributes;
-		sprintf_s(filename, file_f, tag.c_str());
-		ReadDic(filename, attributes);
-		if (attributes.empty())
-			continue;
-		m_tag_attributes.insert(make_pair(tag, attributes));
-		for each (string attr in attributes)
-		{
-			m_attr_values.insert(make_pair(attr, vector<string>()));
-			m_attributes.push_back(attr);
-		}		
-	}
-
-	file_f = "dic\\values-%s.txt";
-	for each (pair<string, vector<string>> attr_values in m_attr_values)
-	{
-		vector<string> values;
-		sprintf_s(filename, file_f, attr_values.first.c_str());
-		ReadDic(filename, values);
-		if (values.empty())
-			continue;
-		else
-			m_attr_values.insert_or_assign(attr_values.first, values);
-	}
+	LoadTagAttrubites("dic\\attributes-*.txt");
+	LoadTypeValues("dic\\values-*.txt");	
 
 	file_f = NULL;
+}
+
+void HtmlGenThread::LoadTagAttrubites(char * name)
+{
+	if (name == NULL)
+		return;
+
+	_finddata_t FileInfo;
+	intptr_t hh = _findfirst(name, &FileInfo);
+	if (hh == -1L)
+		return;
+
+	do
+	{
+		//ÅÐ¶ÏÊÇ·ñÄ¿Â¼
+		if (FileInfo.attrib & _A_SUBDIR)
+			continue;
+		else
+		{						
+			vector<string> attribute_lines;
+			vector<ATTRIBUTE> attributes;
+			string filepath = "dic\\";
+			filepath.append(FileInfo.name);
+			ReadDic(filepath.c_str(), attribute_lines);
+			if (attribute_lines.empty())
+				continue;
+
+			for each (string line in attribute_lines)
+			{
+				string name = line.substr(0, line.find_first_of(':'));
+				string value_line;
+				if (line.find_first_of(':') != string::npos)
+					value_line = line.substr(line.find_first_of(':') + 1, string::npos);
+				else
+					value_line = "$default";
+				vector<string> values = SplitString(value_line, ',');
+				attributes.push_back(ATTRIBUTE{ name, values });
+			}
+
+			string tag = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
+			tag = tag.substr(0, tag.find_last_of('.'));
+			m_tag_attributes.insert(make_pair(tag, attributes));
+		}
+	} while (_findnext(hh, &FileInfo) == 0);
+
+	_findclose(hh);
+}
+
+void HtmlGenThread::LoadTypeValues(char * name)
+{
+	if (name == NULL)
+		return;
+
+	_finddata_t FileInfo;
+	intptr_t hh = _findfirst(name, &FileInfo);
+	if (hh == -1L)
+		return;
+
+	do
+	{
+		//ÅÐ¶ÏÊÇ·ñÄ¿Â¼
+		if (FileInfo.attrib & _A_SUBDIR)
+			continue;
+		else
+		{
+			vector<string> values;
+			string filepath = "dic\\";
+			filepath.append(FileInfo.name);
+			ReadDic(filepath.c_str(), values);
+			if (values.empty())
+				continue;
+
+			string type = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
+			type = type.substr(0, type.find_last_of('.'));
+			m_type_values.insert(make_pair(type, values));
+		}
+	} while (_findnext(hh, &FileInfo) == 0);
+
+	_findclose(hh);
 }
 
 
@@ -143,7 +194,7 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 		return;
 
 	int srclen = strlen(src);
-	int dstsize = m_para->buffSize - m_headLen;
+	int dstsize = m_para->buffSize;
 	if (srclen > dstsize)
 		return;
 
@@ -158,14 +209,16 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 		{
 			if (memcmp(tmp + i, "[vl]", 4) == 0)
 			{
-				if (!m_values.empty())
+				if (!m_type_values["default"].empty())
 				{
-					int vr = random(0, m_values.size());
-					memcpy_s(dst + dstlen, dstsize - dstlen, m_values[vr].c_str(), m_values[vr].size());
-					dstlen += m_values[vr].size();
-					i += 3;
-					continue;
+					int vr = random(0, m_type_values["default"].size());
+					memcpy_s(dst + dstlen, dstsize - dstlen, 
+						m_type_values["default"][vr].c_str(), 
+						m_type_values["default"][vr].size());
+					dstlen += m_type_values["default"][vr].size();					
 				}
+				i += 3;
+				continue;
 			}
 			else if (memcmp(tmp + i, "[nr]", 4) == 0)
 			{
@@ -184,9 +237,9 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 					int er = random(0, m_tags.size());
 					memcpy_s(dst + dstlen, dstsize - dstlen, m_tags[er].c_str(), m_tags[er].size());
 					dstlen += m_tags[er].size();
-					i += 3;
-					continue;
 				}
+				i += 3;
+				continue;
 			}
 			else if (memcmp(tmp + i, "[ev]", 4) == 0)
 			{
@@ -195,9 +248,9 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 					int er = random(0, m_events.size());
 					memcpy_s(dst + dstlen, dstsize - dstlen, m_events[er].c_str(), m_events[er].size());
 					dstlen += m_events[er].size();
-					i += 3;
-					continue;
 				}
+				i += 3;
+				continue;
 			}
 			else if (memcmp(tmp + i, "[ef]", 4) == 0)
 			{
@@ -206,24 +259,40 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 					int er = random(0, m_evfunctions.size());
 					memcpy_s(dst + dstlen, dstsize - dstlen, m_evfunctions[er].c_str(), m_evfunctions[er].size());
 					dstlen += m_evfunctions[er].size();
-					i += 3;
-					continue;
 				}
+				i += 3;
+				continue;
 			}
 			else if (memcmp(tmp + i, "[at]", 4) == 0)
 			{
-				if (!m_attributes.empty())
+				string tag;
+				char* t_start = tmp+i;
+				while (*(--t_start) != '<' && t_start > tmp);
+				if (t_start[0] == '<')
 				{
-					int er = random(0, m_attributes.size());
-					memcpy_s(dst + dstlen, dstsize - dstlen, m_attributes[er].c_str(), m_attributes[er].size());
-					dstlen += m_attributes[er].size();
-					i += 3;
-					continue;
-				}
+					char* t_end = t_start;
+					while (*(++t_end) != ' ' && t_end < tmp+i);
+					if (t_end < tmp + i)
+					{
+						tag.assign(++t_start, t_end - t_start);
+						string attexp = GetRandomAttrExp(tag);
+						if (!attexp.empty())
+						{
+							memcpy_s(dst + dstlen, dstsize - dstlen, attexp.c_str(), attexp.size());
+							dstlen += attexp.size();
+						}
+					}					
+				}		
+				i += 3;
+				continue;
 			}
 			else if (memcmp(tmp + i, "[sf]", 4) == 0)
 			{
-				char* safeurl_f = "window.location.href = 'http://localhost:%d';";
+				char* safeurl_f;
+				if (m_para->autoFuzz)
+					safeurl_f = "window.location.href = 'http://localhost:%d';";
+				else
+					safeurl_f = "";
 				char safeurl[100];
 				sprintf_s(safeurl, safeurl_f, m_para->port);
 				memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
@@ -245,9 +314,9 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 					int r = random(0, tmp[i + 2] - '0' + 1);
 					dst[dstlen++] = '0' + r;
 					dst[dstlen] = 0;
-					i += 3;
-					continue;
 				}
+				i += 3;
+				continue;
 			}
 			else if (memcmp(tmp + i, "[u", 2) == 0 && tmp[i + 3] == ']')
 			{
@@ -256,9 +325,9 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 					string line = GetRandomLine_u(tmp[i + 2] - '0');
 					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
 					dstlen += line.length();
-					i += 3;
-					continue;
 				}
+				i += 3;
+				continue;
 			}			
 			else if (memcmp(tmp + i, "[e", 2) == 0 && tmp[i + 3] == ']')
 			{
@@ -270,9 +339,9 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 						memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
 						dstlen += line.length();						
 					}
-					i += 3;
-					continue;
 				}
+				i += 3;
+				continue;
 			}
 			
 		}
@@ -290,6 +359,31 @@ string HtmlGenThread::GetRandomLine_u(int id)
 		return string();
 	int r = random(0, m_ufile[id].size());
 	return m_ufile[id][r];
+}
+
+string HtmlGenThread::GetRandomAttrExp(string tag)
+{
+	if (m_tag_attributes[tag].empty())
+		return string();
+
+	int r = random(0, m_tag_attributes[tag].size());
+	ATTRIBUTE attr = m_tag_attributes[tag][r];
+	if (attr.values.empty())
+		return string();
+
+	int vr = random(0, attr.values.size());
+	string valueortype = attr.values[vr];
+	if (valueortype.front() == '$')
+	{
+		string type = valueortype.substr(1, string::npos);
+		if (m_type_values[type].empty())
+			return string();
+
+		int tr = random(0, m_type_values[type].size());
+		valueortype = m_type_values[type][tr];
+	}
+
+	return attr.name + "=\"" + valueortype + "\"";
 }
 
 string HtmlGenThread::GetRandomTag(int id)
@@ -310,44 +404,17 @@ string HtmlGenThread::GetRandomTag(int id)
 		event_exp.append("();'");
 	}
 	
-	string attr_exp = "";
-	if (m_tag_attributes.find(tag) != m_tag_attributes.end())
-	{
-		if (!m_tag_attributes[tag].empty())
-		{
-			int pr = random(0, m_tag_attributes[tag].size());
-			string attr = m_tag_attributes[tag][pr];
-			attr_exp.assign(attr);
-			attr_exp.append("='");
-			if (m_attr_values.find(attr) != m_attr_values.end())
-			{
-				if (!m_attr_values[attr].empty())
-				{
-					int vr = random(0, m_attr_values[attr].size());
-					attr_exp.append(m_attr_values[attr][vr]);
-				}
-				else
-				{
-					int vr = random(0, m_values.size());
-					attr_exp.append(m_values[vr]);
-				}
-			}
-			else
-			{
-				int vr = random(0, m_values.size());
-				attr_exp.append(m_values[vr]);
-			}
-			attr_exp.append("'");
-		}		
-	}
-
+	string attr_exp1 = GetRandomAttrExp(tag);	
+	string attr_exp2 = GetRandomAttrExp(tag);
+	string attr_exp3 = GetRandomAttrExp(tag);
 	
-	
-	char* templ = "<%s id='id_%d' %s %s>fuzz</%s>\n\0";
+	char* templ = "<%s id='id_%d' %s %s %s %s>fuzz</%s>\n\0";
 	char result[1024];
 	sprintf_s(result, templ, tag.c_str(), id,
 		event_exp.c_str(), 
-		attr_exp.c_str(),
+		attr_exp1.c_str(),
+		attr_exp2.c_str(),
+		attr_exp3.c_str(),
 		tag.c_str());
 	return string(result);
 }
