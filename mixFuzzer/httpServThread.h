@@ -36,6 +36,7 @@ private:
 	const char* m_jsHead = "HTTP/1.1 200 OK\r\nContent-Type: application/javascript; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
 	const char* m_cssHead = "HTTP/1.1 200 OK\r\nContent-Type: text/css; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
 
+	const char* m_errorpage = "<html><head><title>mixFuzz error</title></head><body><H1>mixFuzz error</H1></body></html>";
 
 	PHTTPSERV_THREAD_PARA m_para;
 	SOCKET m_sock;

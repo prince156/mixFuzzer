@@ -1,4 +1,5 @@
 #include <io.h>
+#include <Ws2tcpip.h>
 #include "httpServThread.h"
 
 #pragma comment(lib,"Ws2_32.lib")
@@ -26,7 +27,6 @@ HttpServThread::~HttpServThread()
 
 void HttpServThread::ThreadMain()
 {
-
 	SOCKET sServer = accept(m_sock, NULL, NULL);
 	if (sServer == INVALID_SOCKET)
 	{
@@ -34,30 +34,38 @@ void HttpServThread::ThreadMain()
 		m_state = THREAD_STATE::STOPPED;
 		return;
 	}
-	
-	int ret = recv(sServer, m_receiveMessage, 1024, 0); // 接受GET请求
-	if (ret == SOCKET_ERROR)
+
+	int ret = recv(sServer, m_receiveMessage, 1024, 0);
+	if (ret == 0)
+	{
+		closesocket(sServer);
+		return;
+	}
+	else if(ret == SOCKET_ERROR)
+	{
+		//m_glogger.warning(TEXT("recv failed with error: %d"), WSAGetLastError());
+		closesocket(sServer);
+		return;
+	}
+	m_receiveMessage[ret] = 0;
+
+	// 获取Get的URL
+	char* url_start = strstr(m_receiveMessage, " ");
+	if(url_start == NULL)
 	{
 		m_glogger.warning(TEXT("recv failed with error: %d"), WSAGetLastError());
 		closesocket(sServer);
 		return;
-	} 
-
-	// 获取Get的URL
-	char* url_start = strstr(m_receiveMessage, "GET");
-	char* url_end = strstr(m_receiveMessage, "HTTP");
-	if (url_start != NULL && url_end != NULL && 
-		url_end > url_start)
-	{
-		memcpy(m_requestUrl, url_start + 4, url_end - url_start - 5);
-		m_requestUrl[url_end - url_start - 5] = 0;
 	}
-	else
+	char* url_end = strstr(url_start+1, " ");
+	if (url_end == NULL)
 	{
 		m_glogger.warning(TEXT("request not supported"));
 		closesocket(sServer);
 		return;
 	}
+	memcpy(m_requestUrl, url_start + 1, url_end - url_start - 1);
+	m_requestUrl[url_end - url_start - 1] = 0;
 
 	// 根据URL,设置数据头
 	size_t headLen, dataLen = 0;
@@ -85,14 +93,15 @@ void HttpServThread::ThreadMain()
 			{
 				sendData = var.data;
 				dataLen = var.size;
+				break;
 			}
 		}
 
 		if (sendData == NULL)
 		{
 			m_glogger.warning(TEXT("resource not find"));
-			closesocket(sServer);
-			return;
+			sendHead = m_htmlHead;
+			sendData = m_errorpage;
 		}
 	}
 	else
@@ -111,14 +120,17 @@ void HttpServThread::ThreadMain()
 	if ( headLen + dataLen > MAX_SENDBUFF_SIZE)
 	{
 		m_glogger.warning(TEXT("send buffer overflow"));
-		closesocket(sServer);
-		return;
+		sendHead = m_htmlHead;
+		sendData = m_errorpage;
 	}
 	memcpy(m_sendBuff, sendHead, headLen);
 	memcpy(m_sendBuff + headLen, sendData, dataLen);
-	send(sServer, m_sendBuff, headLen + dataLen, 0);
-	closesocket(sServer);
+	m_sendBuff[headLen + dataLen] = 0;
+	send(sServer, m_sendBuff, headLen + dataLen, 0);	
 	ReleaseSemaphore(m_para->semHtmlbuff_p, 1, NULL);
+
+	shutdown(sServer, SD_BOTH);
+	closesocket(sServer);
 }
 
 bool HttpServThread::InitSocket()

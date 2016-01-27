@@ -32,11 +32,26 @@ char * HtmlGenThread::GetPrevHtml()
 
 void HtmlGenThread::ThreadMain()
 {
+	if (m_para->htmlTempls.empty())
+	{
+		m_state == THREAD_STATE::STOPPED;
+		return;
+	}
+
 	static int count = 0;
 	strcpy(m_prevprevHtml, m_prevHtml);
 	strcpy(m_prevHtml, m_htmlTempl);
-	GenerateTempl(m_para->htmlTempl, m_htmlTempl);
+
+	m_htmlTempl[0] = 0;
+	int tr = random(0, m_para->htmlTempls.size());
+	GenerateTempl(m_para->htmlTempls[tr], m_htmlTempl);
 	GenerateTempl(m_htmlTempl, m_htmlTempl);
+	if (m_htmlTempl[0] == 0)
+	{
+		m_glogger.error(TEXT("can not fuzz html file"));
+		m_state == THREAD_STATE::STOPPED;
+		return;
+	}
 
 	if (WAIT_OBJECT_0 != WaitForSingleObject(m_para->semHtmlbuff_p, INFINITE))
 		return;
@@ -288,13 +303,9 @@ void HtmlGenThread::GenerateTempl(char * src, char * dst)
 			}
 			else if (memcmp(tmp + i, "[sf]", 4) == 0)
 			{
-				char* safeurl_f;
-				if (m_para->autoFuzz)
-					safeurl_f = "window.location.href = 'http://localhost:%d';";
-				else
-					safeurl_f = "";
+				char* safeurl_f = "window.location.href = 'http://%s:%d';";
 				char safeurl[100];
-				sprintf_s(safeurl, safeurl_f, m_para->port);
+				sprintf_s(safeurl, safeurl_f, m_para->serverip.c_str(), m_para->port);
 				memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
 				dstlen += strlen(safeurl);
 				i += 3;

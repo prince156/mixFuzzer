@@ -11,8 +11,8 @@ typedef struct _htmlgen_para:_thread_para
 	HANDLE semHtmlbuff_c;
 	char* htmlBuff = NULL;
 	int buffSize = 0;
-	char* htmlTempl = NULL;
-	bool autoFuzz = true;
+	vector<char*> htmlTempls;
+	string serverip = "127.0.0.1";
 	int port = 12228;
 }HTMLGEN_THREA_PARA,*PHTMLGEN_THREAD_PARA;
 
