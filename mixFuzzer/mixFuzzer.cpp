@@ -14,7 +14,7 @@
 #include "htmlGenThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v0.4")
+#define SOFT_VER TEXT("v0.5")
 #define SOFT_LOGO TEXT(\
 	"================================================================================\n"\
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
@@ -44,7 +44,7 @@ int _tmain(int argc, TCHAR** argv)
 
 	const uint16_t LISTEN_PORT = 12228;
 	const uint32_t BUFF_SIZE = 1024 * 100;
-	const uint32_t FUZZ_TIMEOUT = 3000;
+	const uint32_t FUZZ_TIMEOUT = 10000;
 	const uint32_t READ_DBGINFO_TIMEOUT = 1000;
 	const uint32_t MAX_POC_COUNT = 5;
 
@@ -184,21 +184,31 @@ int _tmain(int argc, TCHAR** argv)
 	}
 	else if (fuzztarget == TEXT("chrome"))
 	{
-		_tsystem(TEXT("gflags /p /enable chrome.exe /full >nul"));
+		//_tsystem(TEXT("gflags /p /enable chrome.exe /full >nul"));
 		appName = TEXT("chrome.exe");
 		appPath.append(appName);
+		appPath = TEXT("\"") + appPath + TEXT("\"");
 	}
 	else if (fuzztarget == TEXT("firefox"))
 	{
 		_tsystem(TEXT("gflags /p /enable firefox.exe /full >nul"));
 		appName = TEXT("firefox.exe");
 		appPath.append(appName);
+		appPath = TEXT("\"") + appPath + TEXT("\"");
 	}
 	else if (fuzztarget == TEXT("ie"))
 	{
 		_tsystem(TEXT("gflags /p /enable iexplore.exe /full >nul"));
 		appName = TEXT("iexplore.exe");
 		appPath.append(appName);
+		appPath = TEXT("\"") + appPath + TEXT("\"");
+	}
+	else if (fuzztarget == TEXT("opera"))
+	{
+		//_tsystem(TEXT("gflags /p /enable opera.exe /full >nul"));
+		appName = TEXT("opera.exe");
+		appPath.append(TEXT("launcher.exe"));
+		appPath = TEXT("\"") + appPath + TEXT("\"");
 	}
 	
 
@@ -214,8 +224,13 @@ int _tmain(int argc, TCHAR** argv)
 
 		nread = nwrite = 0;
 
-		// kill Edge所有线程
+		// kill 所有相关线程
 		glogger.info(TEXT("Kill all %s-related processes"), fuzztarget.c_str());
+		if (!TerminateAllProcess(TEXT("WerFault.exe")))
+		{
+			glogger.error(TEXT("Cannot kill WerFault.exe, restart fuzz."));
+			continue;
+		}
 		if (!TerminateAllProcess(TEXT("cdb.exe")))
 		{
 			glogger.error(TEXT("Cannot kill cdb, restart fuzz."));
@@ -234,7 +249,7 @@ int _tmain(int argc, TCHAR** argv)
 		si_edge.dwFlags = STARTF_USESHOWWINDOW;
 		si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
 		TCHAR cmdline[1024];
-		_stprintf_s(cmdline, TEXT("\"%s\" http://localhost:%d"), appPath.c_str(), LISTEN_PORT);
+		_stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), webserver.c_str(), LISTEN_PORT);
 		BOOL bRet = CreateProcess(NULL, cmdline,
 			NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
 		if (!bRet)
@@ -242,7 +257,7 @@ int _tmain(int argc, TCHAR** argv)
 			glogger.error(TEXT("Cannot start ") + fuzztarget);
 			exit(_getch());
 		}
-		Sleep(1000);
+		Sleep(1000); // 尽量等待一段时间
 
 		// 获取PID
 		vector<DWORD> procIDs = GetAllProcessId(appName);
@@ -279,19 +294,40 @@ int _tmain(int argc, TCHAR** argv)
 			WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
 			sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");
 			WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
-			WriteFile(inputPipeW, "~*m\n", 2, &nwrite, NULL);
-			sCommandLine = TEXT(".childdbg") + to_tstring(i) + TEXT("\n");
+			WriteFile(inputPipeW, "~*m\n", 4, &nwrite, NULL);
+			sCommandLine = TEXT(".childdbg1\n");
 			WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
 		}
 
-		// 设置symbol path
-		sCommandLine = TEXT(".sympath ") + symPath + TEXT("\n");
-		WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
+		// debug信息：|*\n
+		if (debug_level > 0)
+		{
+			while (GetDebugInfo(outputPipeR, rbuff, buffsize, 100));
+			WriteFile(inputPipeW, "|*\n", 3, &nwrite, NULL);
+			if (GetDebugInfo(outputPipeR, rbuff, buffsize, 200) > 0)
+			{
+				size_t pos = 0;
+				size_t bufflen = strlen(rbuff);
+				for (size_t i = 0; i < bufflen; i++)
+				{
+					if (rbuff[i] == '\n')
+					{
+						rbuff[i] = 0;
+						printf("+1 [main] %s\n", rbuff + pos);
+						pos = i + 1;
+					}
+				}
+			}
+		}
 
+		// 设置symbol path
+		sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\";g;\n");
+		WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
+		Sleep(100);
 		// 设置atanh函数断点，用于日志输出		
-		//sCommandLine = TEXT("bp chakra!Js::Math::Atanh \".printf \\\"%mu\\\", poi(poi(@rsp+0x28)+0x10);.echo;g\"\n");
+		//sCommandLine = TEXT("bp ntdll!RtlFreeHeap \".echo a; g;\"\n");
 		//WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
-		WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+		//WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
 
 		// 监听cdg循环
 		glogger.info(TEXT("Fuzzing ..."));
@@ -328,13 +364,6 @@ int _tmain(int argc, TCHAR** argv)
 
 			if (pbuff[pbufflen-2] == '>' && pbuff[pbufflen - 1] == ' ')
 			{
-				// No runnable debuggees
-				if (strstr(pbuff, "No runnable debuggees") != NULL)
-				{
-					glogger.warning(TEXT("No runnable debuggees"));
-					break;
-				}
-
 				// 进程异常
 				if (CheckC3Ret(pbuff))
 				{	
@@ -351,9 +380,20 @@ int _tmain(int argc, TCHAR** argv)
 					continue;
 				}
 
+				// No runnable debuggees
+				if (strstr(pbuff, "No runnable debuggees") != NULL)
+				{
+					glogger.warning(TEXT("No runnable debuggees"));
+					break;
+				}
+
 				// 判定为crash 
 				glogger.error(TEXT("!! find crash !!"));
 				char* poc = htmlGenThread.GetPrevHtml();
+				if (debug_level > 0)
+				{
+					printf("+1 [main] %s\n", pbuff);
+				}
 				
 				// 生成文件名
 				TCHAR filename[11];
@@ -404,6 +444,9 @@ int _tmain(int argc, TCHAR** argv)
 				FILE* logFile;
 				_tfopen_s(&logFile, logPath.c_str(), TEXT("w"));
 				fwrite("*** mixFuzzer ***\n", 1, 18, logFile);
+				fwrite(pbuff, 1, strlen(pbuff), logFile);
+
+				fwrite("\n\n*** crash info ***\n", 1, 21, logFile);
 				WriteFile(inputPipeW, "r\n", 2, &nwrite, NULL);
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize)> 0)
 					fwrite(pbuff, 1, strlen(pbuff), logFile);
