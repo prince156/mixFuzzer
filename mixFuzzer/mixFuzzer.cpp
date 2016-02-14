@@ -44,7 +44,7 @@ int _tmain(int argc, TCHAR** argv)
 
 	const uint16_t LISTEN_PORT = 12228;
 	const uint32_t BUFF_SIZE = 1024 * 100;
-	const uint32_t FUZZ_TIMEOUT = 10000;
+	const uint32_t FUZZ_TIMEOUT = 5000;
 	const uint32_t READ_DBGINFO_TIMEOUT = 1000;
 	const uint32_t MAX_POC_COUNT = 5;
 
@@ -143,6 +143,7 @@ int _tmain(int argc, TCHAR** argv)
 	httpServPara.semHtmlbuff_c = semaphorec;
 	httpServPara.semHtmlbuff_p = semaphorep;
 	httpServPara.port = LISTEN_PORT;
+	httpServPara.debugLevel = debug_level;
 	HttpServThread httpServThread(&httpServPara);
 	if (!httpServThread.Run())
 	{
@@ -159,6 +160,7 @@ int _tmain(int argc, TCHAR** argv)
 	htmlGenPara.semHtmlbuff_p = semaphorep;
 	htmlGenPara.serverip = WStringToString(webserver);
 	htmlGenPara.port = LISTEN_PORT;
+	htmlGenPara.debugLevel = debug_level;
 	HtmlGenThread htmlGenThread(&htmlGenPara);
 	if (!htmlGenThread.Run())
 	{
@@ -257,7 +259,7 @@ int _tmain(int argc, TCHAR** argv)
 			glogger.error(TEXT("Cannot start ") + fuzztarget);
 			exit(_getch());
 		}
-		Sleep(1000); // 尽量等待一段时间
+		Sleep(500); // 尽量等待一段时间
 
 		// 获取PID
 		vector<DWORD> procIDs = GetAllProcessId(appName);
@@ -321,13 +323,9 @@ int _tmain(int argc, TCHAR** argv)
 		}
 
 		// 设置symbol path
-		sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\";g;\n");
+		sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\";g;\n"); // 同时加入g; 防止后面出现异常
 		WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
 		Sleep(100);
-		// 设置atanh函数断点，用于日志输出		
-		//sCommandLine = TEXT("bp ntdll!RtlFreeHeap \".echo a; g;\"\n");
-		//WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
-		//WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
 
 		// 监听cdg循环
 		glogger.info(TEXT("Fuzzing ..."));
@@ -728,7 +726,7 @@ void LoudTemplate(vector<char*> & templs, int maxBuffSize)
 	templs.clear();
 
 	_finddata_t FileInfo;
-	string strfind = ".\\template-*.html";
+	string strfind = ".\\template*.html";
 	intptr_t hh = _findfirst(strfind.c_str(), &FileInfo);
 	if (hh == -1L)
 		return;

@@ -49,12 +49,12 @@ private:
 	void ThreadMain();
 
 	void Init();
-	void LoadTagAttrubites(char* name);
-	void LoadTypeValues(char* name);
+	void LoadTagAttrubites(string path, string name);
+	void LoadTypeValues(string path, string name);
 	int ReadDic(const char* dicfile, vector<string>& list);
 	void GenerateTempl(char* src, char* dst);
 	string GetRandomLine_u(int id);
-	string GetRandomAttrExp(string tag);
+	string GetRandomAttrExp(string tag, bool quot=true);
 	string GetRandomTag(int id);
 };
 

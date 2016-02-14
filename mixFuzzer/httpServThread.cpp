@@ -61,6 +61,10 @@ void HttpServThread::ThreadMain()
 	if (url_end == NULL)
 	{
 		m_glogger.warning(TEXT("request not supported"));
+		if (m_para->debugLevel > 0)
+		{
+			printf("+1 [] %s\n", m_receiveMessage);
+		}
 		closesocket(sServer);
 		return;
 	}
@@ -99,7 +103,11 @@ void HttpServThread::ThreadMain()
 
 		if (sendData == NULL)
 		{
-			m_glogger.warning(TEXT("resource not find"));
+			m_glogger.warning(TEXT("resource not find :"));
+			if (m_para->debugLevel > 0)
+			{
+				printf("+1 [] %s\n", m_requestUrl);
+			}
 			sendHead = m_htmlHead;
 			sendData = m_errorpage;
 		}
