@@ -14,7 +14,7 @@
 #include "htmlGenThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v0.5")
+#define SOFT_VER TEXT("v0.6")
 #define SOFT_LOGO TEXT(\
 	"================================================================================\n"\
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
@@ -46,7 +46,7 @@ int _tmain(int argc, TCHAR** argv)
 	const uint32_t BUFF_SIZE = 1024 * 100;
 	const uint32_t FUZZ_TIMEOUT = 5000;
 	const uint32_t READ_DBGINFO_TIMEOUT = 1000;
-	const uint32_t MAX_POC_COUNT = 5;
+	const uint32_t MAX_POC_COUNT = 10;
 
 	char* htmlBuff = new char[BUFF_SIZE+1]; // http packet buff
 	vector<char*> htmlTempls; // html template buff
@@ -367,6 +367,9 @@ int _tmain(int argc, TCHAR** argv)
 				{	
 					glogger.warning(TEXT("break @ \"ret\", continue"));
 					//break;
+					WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+					pbuff[0] = 0;
+					continue;
 				}
 
 				// 软件中断，g
@@ -388,9 +391,16 @@ int _tmain(int argc, TCHAR** argv)
 				// 判定为crash 
 				glogger.error(TEXT("!! find crash !!"));
 				char* poc = htmlGenThread.GetPrevHtml();
+				char* ppoc = htmlGenThread.GetPPrevHtml();
+				char* npoc = htmlGenThread.GetNextHtml();
 				if (debug_level > 0)
 				{
 					printf("+1 [main] %s\n", pbuff);
+				}
+				if (strlen(poc) == 0)
+				{
+					glogger.error(TEXT("can not get POC"));
+					break;
 				}
 				
 				// 生成文件名
@@ -435,12 +445,64 @@ int _tmain(int argc, TCHAR** argv)
 				// 写入html文件
 				FILE* htmlFile;
 				_tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
+				if (htmlFile == NULL)
+				{
+					glogger.error(TEXT("can not create html file"));
+					break;
+				}
 				fwrite(poc, 1, strlen(poc), htmlFile);
 				fclose(htmlFile);
+
+				// 写入前一个html
+				if (strlen(ppoc) > 0)
+				{
+					htmlPath.clear();
+					htmlPath.assign(outPath);
+					htmlPath.append(crashpos);
+					htmlPath.append(TEXT("\\"));
+					htmlPath.append(filename);
+					htmlPath.append(TEXT("_prev.html"));
+					_tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
+					if (htmlFile == NULL)
+					{
+						glogger.error(TEXT("can not create prev_html file"));
+						break;
+					}
+					fwrite(ppoc, 1, strlen(ppoc), htmlFile);
+					fclose(htmlFile);
+				}
+				else
+					glogger.warning(TEXT("can not get prev_html"));
+
+				// 写入后一个html
+				if (strlen(npoc) > 0)
+				{
+					htmlPath.clear();
+					htmlPath.assign(outPath);
+					htmlPath.append(crashpos);
+					htmlPath.append(TEXT("\\"));
+					htmlPath.append(filename);
+					htmlPath.append(TEXT("_next.html"));
+					_tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
+					if (htmlFile == NULL)
+					{
+						glogger.error(TEXT("can not create next_html file"));
+						break;
+					}
+					fwrite(npoc, 1, strlen(npoc), htmlFile);
+					fclose(htmlFile);
+				}
+				else
+					glogger.warning(TEXT("can not get next_html"));
 
 				// 写入log文件
 				FILE* logFile;
 				_tfopen_s(&logFile, logPath.c_str(), TEXT("w"));
+				if (logFile == NULL)
+				{
+					glogger.error(TEXT("can not create log file"));
+					break;
+				}
 				fwrite("*** mixFuzzer ***\n", 1, 18, logFile);
 				fwrite(pbuff, 1, strlen(pbuff), logFile);
 

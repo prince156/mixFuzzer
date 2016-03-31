@@ -12,9 +12,11 @@ HtmlGenThread::HtmlGenThread(PHTMLGEN_THREAD_PARA para)
 	m_para = para;
 	m_htmlTempl = new char[m_para->buffSize + 1];
 	m_prevHtml = new char[m_para->buffSize + 1];
-	m_prevprevHtml = new char[m_para->buffSize + 1];
+	m_pprevHtml = new char[m_para->buffSize + 1];
+	m_ppprevHtml = new char[m_para->buffSize + 1];
 	m_prevHtml[0] = 0;
-	m_prevprevHtml[0] = 0;
+	m_pprevHtml[0] = 0;
+	m_ppprevHtml[0] = 0;
 	m_htmlTempl[0] = 0;
 	m_ufile.resize(10);
 	Init();
@@ -25,9 +27,19 @@ HtmlGenThread::~HtmlGenThread()
 {
 }
 
+char * HtmlGenThread::GetNextHtml()
+{
+	return m_prevHtml;
+}
+
 char * HtmlGenThread::GetPrevHtml()
 {
-	return m_prevprevHtml;
+	return m_pprevHtml;
+}
+
+char * HtmlGenThread::GetPPrevHtml()
+{
+	return m_ppprevHtml;
 }
 
 void HtmlGenThread::ThreadMain()
@@ -39,7 +51,8 @@ void HtmlGenThread::ThreadMain()
 	}
 
 	static int count = 0;
-	strcpy(m_prevprevHtml, m_prevHtml);
+	strcpy(m_ppprevHtml, m_pprevHtml);
+	strcpy(m_pprevHtml, m_prevHtml);
 	strcpy(m_prevHtml, m_htmlTempl);
 
 	m_htmlTempl[0] = 0;

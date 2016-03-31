@@ -32,7 +32,8 @@ private:
 	PHTMLGEN_THREAD_PARA m_para;
 	char* m_htmlTempl;
 	char* m_prevHtml;
-	char* m_prevprevHtml;
+	char* m_pprevHtml;
+	char* m_ppprevHtml;
 
 	vector<vector<string>> m_ufile;
 	vector<string> m_events;
@@ -43,7 +44,9 @@ private:
 	map<string, vector<string>> m_type_values;
 	
 public:
+	char* GetNextHtml();
 	char* GetPrevHtml();
+	char* GetPPrevHtml();
 
 private:
 	void ThreadMain();
