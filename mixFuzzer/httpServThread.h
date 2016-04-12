@@ -5,6 +5,9 @@
 using namespace std;
 using namespace gcommon;
 
+const static size_t MAX_SENDBUFF_SIZE = 1024 * 200;
+
+
 typedef struct _httpservpara:_thread_para
 {
 	HANDLE semHtmlbuff_p = NULL;
@@ -26,25 +29,12 @@ public:
 	HttpServThread(PHTTPSERV_THREAD_PARA para);
 	~HttpServThread();
 
-private:
-	const size_t MAX_SENDBUFF_SIZE = 1024 * 200;
+private:	
 	const string m_resourceDir = "resources";
-	const char* m_htmlHead = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
-	const char* m_svgHead = "HTTP/1.1 200 OK\r\nContent-Type: image/svg+xml; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
-	const char* m_jpgHead = "HTTP/1.1 200 OK\r\nContent-Type: image/jpg; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
-	const char* m_swfHead = "HTTP/1.1 200 OK\r\nContent-Type: application/x-shockwave-flash; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
-	const char* m_jsHead = "HTTP/1.1 200 OK\r\nContent-Type: application/javascript; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
-	const char* m_cssHead = "HTTP/1.1 200 OK\r\nContent-Type: text/css; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
-
-	const char* m_errorpage = "<html><head><title>mixFuzz error</title></head><body><H1>mixFuzz error</H1></body></html>";
-
 	PHTTPSERV_THREAD_PARA m_para;
-	SOCKET m_sock;
-
-	char* m_receiveMessage;
-	char* m_requestUrl;
-	char* m_sendBuff;
+	SOCKET m_sock;	
 	vector<RESOURCE> m_resources;
+    map<DWORD, uint64_t> m_prevHtmls;
 
 private:
 	void ThreadMain();
