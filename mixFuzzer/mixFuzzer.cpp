@@ -50,7 +50,6 @@ int _tmain(int argc, TCHAR** argv)
     const TCHAR* sRuntimeBrokerExecutable = TEXT("RuntimeBroker.exe");
     const TCHAR* sMicrosoftEdgeCPExecutable = TEXT("MicrosoftEdgeCP.exe");
 
-    const uint16_t LISTEN_PORT = 12228;
     const uint32_t BUFF_SIZE = 1024 * 100;
     const uint32_t READ_DBGINFO_TIMEOUT = 1000;
     const uint32_t MAX_POC_COUNT = 10;
@@ -68,6 +67,7 @@ int _tmain(int argc, TCHAR** argv)
     PRINT_TARGET print_target = PRINT_TARGET::BOTH;
     int debug_level = 0;
     int deadTimeout = 5000;
+    int serverPort = 12228;
     tstring log_file = TEXT("mixfuzz.log");
     tstring mode = TEXT("autofuzz");
     tstring webserver = TEXT("127.0.0.1");
@@ -122,6 +122,7 @@ int _tmain(int argc, TCHAR** argv)
     // 读取config文件
     debug_level = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEBUG_LEVEL"), TEXT("0")).c_str());
     deadTimeout = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEAD_TIMEOUT"), TEXT("5000")).c_str());
+    serverPort = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228")).c_str());
     fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), fuzztarget);
     appPath = GetConfigPara(currentDir + configFile, TEXT("APP_PATH"), appPath);
     symPath = GetConfigPara(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
@@ -155,8 +156,9 @@ int _tmain(int argc, TCHAR** argv)
     httpServPara.htmlBuff = htmlBuff;
     httpServPara.semHtmlbuff_c = semaphorec;
     httpServPara.semHtmlbuff_p = semaphorep;
-    httpServPara.port = LISTEN_PORT;
+    httpServPara.port = serverPort;
     httpServPara.debugLevel = debug_level;
+    httpServPara.outPath = outPath;
     HTMLGEN_THREA_PARA htmlGenPara;
     htmlGenPara.buffSize = BUFF_SIZE;
     htmlGenPara.htmlBuff = htmlBuff;
@@ -164,7 +166,7 @@ int _tmain(int argc, TCHAR** argv)
     htmlGenPara.semHtmlbuff_c = semaphorec;
     htmlGenPara.semHtmlbuff_p = semaphorep;
     htmlGenPara.serverip = WStringToString(webserver);
-    htmlGenPara.port = LISTEN_PORT;
+    htmlGenPara.port = serverPort;
     htmlGenPara.debugLevel = debug_level;
     HttpServThread httpServThread(&httpServPara);
     HtmlGenThread htmlGenThread(&htmlGenPara);
@@ -188,7 +190,7 @@ int _tmain(int argc, TCHAR** argv)
     // 进入webserver模式
     if (mode == TEXT("webserver"))
     {
-        glogger.info(TEXT("webserver mode, listening at port: %d"), LISTEN_PORT);
+        glogger.info(TEXT("webserver mode, listening at port: %d"), serverPort);
         while (true)
         {
             Sleep(100);
@@ -277,7 +279,7 @@ int _tmain(int argc, TCHAR** argv)
         si_edge.dwFlags = STARTF_USESHOWWINDOW;
         si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
         TCHAR cmdline[1024];
-        _stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), webserver.c_str(), LISTEN_PORT);
+        _stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), webserver.c_str(), serverPort);
         BOOL bRet = CreateProcess(NULL, cmdline,
             NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
         if (!bRet)
@@ -297,7 +299,8 @@ int _tmain(int argc, TCHAR** argv)
 
         // attach调试器	
         sCommandLine = cdb_exe + TEXT(" -o -p ") + to_tstring(procIDs[0]);
-        glogger.info(TEXT("Attach ") + sCommandLine);
+        glogger.info(TEXT("Attach ") + cdb_exe);
+        glogger.info(TEXT("  -pid:") + to_tstring(procIDs[0]));
         STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
         si_cdb.dwFlags |= STARTF_USESTDHANDLES;
         si_cdb.hStdInput = inputPipeR;
@@ -314,6 +317,7 @@ int _tmain(int argc, TCHAR** argv)
         // attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
         for (size_t i = 1; i < procIDs.size(); i++)
         {
+            glogger.info(TEXT("  -pid:") + to_tstring(procIDs[i]));
             sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");
             WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
             WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
@@ -413,7 +417,7 @@ int _tmain(int argc, TCHAR** argv)
 
                 // 判定为crash 
                 glogger.error(TEXT("!! find crash !!"));
-                GetPrevHTML(webserver, LISTEN_PORT, pocbuff);
+                GetPrevHTML(webserver, serverPort, pocbuff);
                 if (debug_level > 0)
                 {
                     printf("+1 [main] %s\n", pbuff);

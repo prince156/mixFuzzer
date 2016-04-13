@@ -5,6 +5,7 @@
 
 #pragma comment(lib,"Ws2_32.lib")
 
+extern GLogger2 glogger;
 
 HttpServThread::HttpServThread(PHTTPSERV_THREAD_PARA para)
 	:GThread(para)
@@ -95,6 +96,35 @@ DWORD WINAPI SocketThread(PVOID para)
         {
             sendData = pPara->prevHtml;
             dataLen = strlen(sendData);
+            
+            // 获取崩溃位置作为目录名
+            tstring crashpos = inet_ltot(pPara->remoteIP);
+            tstring htmlPath;
+            htmlPath.assign(pPara->para->outPath);
+            htmlPath.append(crashpos);
+            htmlPath.append(TEXT("\\"));
+            CreateDirectory(htmlPath.c_str(), NULL);
+            glogger.error(TEXT("find crash at: ") + crashpos);
+
+            // 补全文件名
+            TCHAR filename[11];
+            time_t ct = time(NULL);
+            _itot(ct, filename, 10);
+            htmlPath.append(filename);
+            htmlPath.append(TEXT(".html"));
+
+            // 写入html文件
+            FILE* htmlFile;
+            _tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
+            if (htmlFile == NULL)
+            {
+                glogger.error(TEXT("can not create html file"));
+            }
+            else
+            {
+                fwrite(sendData, 1, dataLen, htmlFile);
+                fclose(htmlFile);
+            }            
         }
         else
         {
