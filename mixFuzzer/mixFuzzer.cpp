@@ -34,7 +34,7 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout = 2000);
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
 bool CheckCCInt3(char* buff);
 bool CheckC3Ret(char* buff);
-vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName);
+vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids= vector<DWORD>());
 bool TerminateAllProcess(LPCTSTR pszProcessName);
 uint32_t GetFilecountInDir(tstring dir, tstring fileext);
 void LoudTemplate(vector<char*> & templs, int maxBuffSize);
@@ -52,7 +52,6 @@ int _tmain(int argc, TCHAR** argv)
 
     const uint32_t BUFF_SIZE = 1024 * 100;
     const uint32_t READ_DBGINFO_TIMEOUT = 1000;
-    const uint32_t MAX_POC_COUNT = 10;
 
     char* htmlBuff = new char[BUFF_SIZE + 1]; // http packet buff
     vector<char*> htmlTempls; // html template buff
@@ -66,8 +65,10 @@ int _tmain(int argc, TCHAR** argv)
 
     PRINT_TARGET print_target = PRINT_TARGET::BOTH;
     int debug_level = 0;
-    int deadTimeout = 5000;
-    int serverPort = 12228;
+    int deadTimeout = 5000; // 浏览器卡死超时
+    int waitTime = 2000;    // 浏览器启动等待时间
+    int serverPort = 12228; // http服务端口
+    int maxPocCount = 10;   // 同一个目录中最大poc数量（以log文件计数）
     tstring log_file = TEXT("mixfuzz.log");
     tstring mode = TEXT("autofuzz");
     tstring webserver = TEXT("127.0.0.1");
@@ -122,7 +123,9 @@ int _tmain(int argc, TCHAR** argv)
     // 读取config文件
     debug_level = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEBUG_LEVEL"), TEXT("0")).c_str());
     deadTimeout = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEAD_TIMEOUT"), TEXT("5000")).c_str());
+    waitTime = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("2000")).c_str());
     serverPort = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228")).c_str());
+    maxPocCount = _ttoi(GetConfigPara(currentDir + configFile, TEXT("MAX_POC_COUNT"), TEXT("10")).c_str());
     fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), fuzztarget);
     appPath = GetConfigPara(currentDir + configFile, TEXT("APP_PATH"), appPath);
     symPath = GetConfigPara(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
@@ -245,6 +248,7 @@ int _tmain(int argc, TCHAR** argv)
     while (true)
     {
         glogger.screen(TEXT("\n\n"));
+        glogger.insertCurrentTime();
         glogger.info(TEXT("Start Fuzzing ..."));
 
         nread = nwrite = 0;
@@ -287,10 +291,11 @@ int _tmain(int argc, TCHAR** argv)
             glogger.error(TEXT("Cannot start ") + fuzztarget);
             exit(_getch());
         }
-        Sleep(2000); // 尽量等待一段时间
+        Sleep(waitTime); // 尽量等待一段时间
 
-                    // 获取PID
+        // 获取PID
         vector<DWORD> procIDs = GetAllProcessId(appName);
+        vector<DWORD> procIDs_new;
         if (procIDs.empty())
         {
             glogger.error(TEXT("Cannot start the browser, restart fuzz."));
@@ -360,6 +365,23 @@ int _tmain(int argc, TCHAR** argv)
         uint32_t idletime = 0;
         while (true)
         {
+            // 查看是否存在新的进程
+            procIDs_new = GetAllProcessId(appName, procIDs);
+            if (!procIDs_new.empty())
+            {
+                // 暂停调试器
+                //SendMessage(,);
+
+                // attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
+                for (size_t i = 1; i < procIDs_new.size(); i++)
+                {
+                    glogger.info(TEXT("  new pid:") + to_tstring(procIDs_new[i]));
+                    procIDs.push_back(procIDs_new[i]);
+                }
+                procIDs_new.clear();
+            }
+
+            // 获取调试器输出
             nread = GetDebugInfo(outputPipeR, rbuff, buffsize, READ_DBGINFO_TIMEOUT);
             if (nread == buffsize)
             {
@@ -442,7 +464,7 @@ int _tmain(int argc, TCHAR** argv)
                 CreateDirectory(htmlPath.c_str(), NULL);
                 glogger.info(TEXT("crash = ") + crashpos);
                 if (crashpos != TEXT("unknown") &&
-                    GetFilecountInDir(htmlPath, TEXT("html")) >= MAX_POC_COUNT)
+                    GetFilecountInDir(htmlPath, TEXT("log")) >= maxPocCount)
                 {
                     glogger.warning(TEXT("this crash already logged, restart fuzz ..."));
                     break;
@@ -651,7 +673,7 @@ tstring GetCurrentDirPath()
     return strCurrentDir;
 }
 
-vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName)
+vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids)
 {
     DWORD aProcesses[1024], cbNeeded, cProcesses;
     unsigned int i;
@@ -684,7 +706,17 @@ vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName)
 
                 if (_tcsicmp(szEXEName, pszProcessName) == 0)
                 {
-                    pids.push_back(aProcesses[i]);
+                    bool find = false;
+                    for each (DWORD id in ids)
+                    {
+                        if (id == aProcesses[i])
+                        {
+                            find = true;
+                            break;
+                        }
+                    }
+                    if(!find)
+                        pids.push_back(aProcesses[i]);
                 }
             }
             CloseHandle(hProcess);
