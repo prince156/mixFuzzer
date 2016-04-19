@@ -14,16 +14,16 @@
 #include "htmlGenThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v0.7")
+#define SOFT_VER TEXT("v0.8")
 #define SOFT_LOGO TEXT(\
 	"================================================================================\n"\
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
 	"================================================================================\n\n")
 
-#define CDB_X86 TEXT("cdb_x86.exe")
-#define CDB_X64 TEXT("cdb_x64.exe")
-#define GFLAGS_X86 TEXT("gflags_x86.exe")
-#define GFLAGS_X64 TEXT("gflags_x64.exe")
+#define CDB_X86 TEXT("tools\\cdb_x86.exe")
+#define CDB_X64 TEXT("tools\\cdb_x64.exe")
+#define GFLAGS_X86 TEXT("tools\\gflags_x86.exe")
+#define GFLAGS_X64 TEXT("tools\\gflags_x64.exe")
 
 using namespace std;
 using namespace gcommon;
@@ -793,7 +793,7 @@ void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int ma
     templs.clear();
 
     _finddata_t FileInfo;
-    string strfind = ".\\template*.html";
+    string strfind = ".\\template\\template*.html";
     intptr_t hh = _findfirst(strfind.c_str(), &FileInfo);
     if (hh == -1L)
         return;
@@ -806,7 +806,9 @@ void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int ma
         else
         {
             FILE* ftempl;
-            if (fopen_s(&ftempl, FileInfo.name, "r") != 0)
+            string filepath = ".\\template\\";
+            filepath.append(FileInfo.name);
+            if (fopen_s(&ftempl, filepath.c_str(), "r") != 0)
             {
                 glogger.warning(TEXT("failed to open %s"), FileInfo.name);
                 continue;

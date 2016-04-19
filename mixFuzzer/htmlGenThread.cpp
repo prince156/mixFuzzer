@@ -42,7 +42,7 @@ void HtmlGenThread::ThreadMain()
 
 void HtmlGenThread::Init()
 {
-    char* file_f = "u%d.txt";
+    char* file_f = "template\\u%d.txt";
     char filename[MAX_PATH];
     for (size_t i = 0; i < 10; i++)
     {
