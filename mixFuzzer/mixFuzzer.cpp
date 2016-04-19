@@ -37,7 +37,7 @@ bool CheckC3Ret(char* buff);
 vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids= vector<DWORD>());
 bool TerminateAllProcess(LPCTSTR pszProcessName);
 uint32_t GetFilecountInDir(tstring dir, tstring fileext);
-void LoudTemplate(vector<PTMPL_NODE> &templs, int maxBuffSize);
+void LoudTemplate(vector<PTMPL_NODE> &templnodes, vector<char*> &templs, int maxBuffSize);
 uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff);
 bool IsWow64();
 
@@ -54,7 +54,8 @@ int _tmain(int argc, TCHAR** argv)
     const uint32_t READ_DBGINFO_TIMEOUT = 1000;
 
     char* htmlBuff = new char[BUFF_SIZE + 1]; // http packet buff
-    vector<PTMPL_NODE> htmlTempls; // html template buff
+    vector<PTMPL_NODE> htmlTemplNodes; // html template buff
+    vector<char*> htmlTempls;
 
     tstring configFile = TEXT("config.ini");
     tstring symPath = TEXT("srv*");
@@ -143,7 +144,7 @@ int _tmain(int argc, TCHAR** argv)
     CreateDirectory(outPath.c_str(), NULL);
 
     // 读取模板文件
-    LoudTemplate(htmlTempls, BUFF_SIZE);
+    LoudTemplate(htmlTemplNodes, htmlTempls, BUFF_SIZE);
     if (htmlTempls.size() == 0)
     {
         glogger.error(TEXT("no template available"));
@@ -165,6 +166,7 @@ int _tmain(int argc, TCHAR** argv)
     HTMLGEN_THREA_PARA htmlGenPara;
     htmlGenPara.buffSize = BUFF_SIZE;
     htmlGenPara.htmlBuff = htmlBuff;
+    htmlGenPara.htmlTemplNodes = htmlTemplNodes;
     htmlGenPara.htmlTempls = htmlTempls;
     htmlGenPara.semHtmlbuff_c = semaphorec;
     htmlGenPara.semHtmlbuff_p = semaphorep;
@@ -786,7 +788,7 @@ uint32_t GetFilecountInDir(tstring dir, tstring fileext)
     return count;
 }
 
-void LoudTemplate(vector<PTMPL_NODE> & templs, int maxBuffSize)
+void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int maxBuffSize)
 {
     templs.clear();
 
@@ -811,6 +813,7 @@ void LoudTemplate(vector<PTMPL_NODE> & templs, int maxBuffSize)
             }
 
             char* htmlTempl = new char[maxBuffSize + 1];
+            char* htmlTemplBak = new char[maxBuffSize + 1];
             size_t tmplsize = fread_s(htmlTempl, maxBuffSize, 1, maxBuffSize - 1, ftempl);
             fclose(ftempl);
             if (tmplsize == 0)
@@ -820,6 +823,8 @@ void LoudTemplate(vector<PTMPL_NODE> & templs, int maxBuffSize)
                 continue;
             }
             htmlTempl[tmplsize] = 0;
+            strcpy(htmlTemplBak, htmlTempl);
+            templs.push_back(htmlTemplBak);
 
             PTMPL_NODE head = new TMPL_NODE();
             PTMPL_NODE current = head;
@@ -830,7 +835,6 @@ void LoudTemplate(vector<PTMPL_NODE> & templs, int maxBuffSize)
             for (size_t i = 0; i < tmplsize - 4; i++)
             {
                 uint32_t tmp = *(uint32_t*)(htmlTempl + i) & 0xff0000ff;
-                //if((*(DWORD*)(htmlTempl + i) & 0xff0000ff) == ']\x00\x00[')
                 if (tmp == *(uint32_t*)"[\0\0]")
                 {
                     current->next = new TMPL_NODE();
@@ -842,8 +846,7 @@ void LoudTemplate(vector<PTMPL_NODE> & templs, int maxBuffSize)
                     htmlTempl[i] = 0;
                 }                
             }
-
-            templs.push_back(head);
+            templnodes.push_back(head);
         }
     } while (_findnext(hh, &FileInfo) == 0);
 
