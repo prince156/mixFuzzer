@@ -50,11 +50,7 @@ DWORD WINAPI SocketThread(PVOID para)
 
     // 接收请求数据
     int ret = recv(pPara->sock, m_receiveMessage, 1024, 0);
-    if (ret == 0)
-    {
-        goto _safe_exit;
-    }
-    else if (ret == SOCKET_ERROR)
+    if (ret == 0 || ret == SOCKET_ERROR)
     {
         goto _safe_exit;
     }
@@ -152,7 +148,7 @@ DWORD WINAPI SocketThread(PVOID para)
             dataLen = strlen(m_errorpage);
         }
     }
-    else
+    else //样本
     {
         sendData = pPara->para->htmlBuff;
         dataLen = strlen(sendData);
@@ -183,12 +179,12 @@ DWORD WINAPI SocketThread(PVOID para)
     }
     memcpy(m_sendBuff + headLen, sendData, dataLen);
     m_sendBuff[headLen + dataLen] = 0;
-    // 保存html
-    memcpy(pPara->prevHtml, sendData, dataLen);
-    pPara->prevHtml[dataLen] = 0;
-    ReleaseSemaphore(pPara->para->semHtmlbuff_p, 1, NULL);// 释放互斥量 
-    
+    ReleaseSemaphore(pPara->para->semHtmlbuff_p, 1, NULL);// 释放互斥量       
     send(pPara->sock, m_sendBuff, headLen + dataLen, 0);        
+
+    // 保存html
+    memcpy(pPara->prevHtml, m_sendBuff + headLen, dataLen);
+    pPara->prevHtml[dataLen] = 0;
 
     _safe_exit:
     closesocket(pPara->sock);

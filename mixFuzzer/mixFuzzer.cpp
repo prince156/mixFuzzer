@@ -37,7 +37,7 @@ bool CheckC3Ret(char* buff);
 vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids= vector<DWORD>());
 bool TerminateAllProcess(LPCTSTR pszProcessName);
 uint32_t GetFilecountInDir(tstring dir, tstring fileext);
-void LoudTemplate(vector<char*> & templs, int maxBuffSize);
+void LoudTemplate(vector<PTMPL_NODE> &templs, int maxBuffSize);
 uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff);
 bool IsWow64();
 
@@ -54,7 +54,7 @@ int _tmain(int argc, TCHAR** argv)
     const uint32_t READ_DBGINFO_TIMEOUT = 1000;
 
     char* htmlBuff = new char[BUFF_SIZE + 1]; // http packet buff
-    vector<char*> htmlTempls; // html template buff
+    vector<PTMPL_NODE> htmlTempls; // html template buff
 
     tstring configFile = TEXT("config.ini");
     tstring symPath = TEXT("srv*");
@@ -786,7 +786,7 @@ uint32_t GetFilecountInDir(tstring dir, tstring fileext)
     return count;
 }
 
-void LoudTemplate(vector<char*> & templs, int maxBuffSize)
+void LoudTemplate(vector<PTMPL_NODE> & templs, int maxBuffSize)
 {
     templs.clear();
 
@@ -806,8 +806,8 @@ void LoudTemplate(vector<char*> & templs, int maxBuffSize)
             FILE* ftempl;
             if (fopen_s(&ftempl, FileInfo.name, "r") != 0)
             {
-                glogger.error(TEXT("failed to open template.html"));
-                exit(_getch());
+                glogger.warning(TEXT("failed to open %s"), FileInfo.name);
+                continue;
             }
 
             char* htmlTempl = new char[maxBuffSize + 1];
@@ -815,12 +815,35 @@ void LoudTemplate(vector<char*> & templs, int maxBuffSize)
             fclose(ftempl);
             if (tmplsize == 0)
             {
-                glogger.warning(TEXT("failed to read template.html"));
+                glogger.warning(TEXT("failed to read %s"), FileInfo.name);
+                delete htmlTempl;
                 continue;
             }
             htmlTempl[tmplsize] = 0;
 
-            templs.push_back(htmlTempl);
+            PTMPL_NODE head = new TMPL_NODE();
+            PTMPL_NODE current = head;
+            head->offset = 0;
+            head->next = NULL;
+            head->type = 0;
+            head->data = htmlTempl;
+            for (size_t i = 0; i < tmplsize - 4; i++)
+            {
+                uint32_t tmp = *(uint32_t*)(htmlTempl + i) & 0xff0000ff;
+                //if((*(DWORD*)(htmlTempl + i) & 0xff0000ff) == ']\x00\x00[')
+                if (tmp == *(uint32_t*)"[\0\0]")
+                {
+                    current->next = new TMPL_NODE();
+                    current = current->next;
+                    current->offset = i;
+                    current->type = gcommon::ntohl(*(uint32_t*)(htmlTempl + i));
+                    current->data = htmlTempl + i + 4;
+                    current->next = NULL;
+                    htmlTempl[i] = 0;
+                }                
+            }
+
+            templs.push_back(head);
         }
     } while (_findnext(hh, &FileInfo) == 0);
 
