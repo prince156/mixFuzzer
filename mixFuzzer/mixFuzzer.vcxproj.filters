@@ -50,8 +50,11 @@
     <ClInclude Include="..\..\common\common.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="fuzzstr.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="..\..\mixFuzzer日志.txt" />
+    <Text Include="..\mixFuzzer日志.txt" />
   </ItemGroup>
 </Project>

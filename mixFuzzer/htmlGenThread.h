@@ -48,8 +48,10 @@ private:
 	vector<string> m_events;
 	vector<string> m_evfunctions;
 	vector<string> m_tags;
+    vector<string> m_commands;
 
 	map<string, vector<ATTRIBUTE>> m_tag_attributes;
+    map<string, vector<ATTRIBUTE>> m_tag_attributes_rw;
 	map<string, vector<string>> m_type_values;
 
 
@@ -62,8 +64,9 @@ private:
 	int ReadDic(const char* dicfile, vector<string>& list);
 	void GenerateTempl(PTMPL_NODE src, char* dst);
     void GenerateTempl(const char* src, char* dst);
+    void GenerateFromVector(vector<string> &strs, char* dst, int dstsize, int& dstlen);
 	string GetRandomLine_u(int id);
-	string GetRandomAttrExp(string tag, bool quot=true);
+	string GetRandomAttrExp(string tag);
 	string GetRandomTag(int id);
 };
 

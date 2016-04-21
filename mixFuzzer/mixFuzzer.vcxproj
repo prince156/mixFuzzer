@@ -182,11 +182,12 @@
     <ClInclude Include="..\..\common\common.h" />
     <ClInclude Include="..\..\common\glogger2.h" />
     <ClInclude Include="..\..\common\gthread.h" />
+    <ClInclude Include="fuzzstr.h" />
     <ClInclude Include="htmlGenThread.h" />
     <ClInclude Include="httpServThread.h" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="..\..\mixFuzzer日志.txt" />
+    <Text Include="..\mixFuzzer日志.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
