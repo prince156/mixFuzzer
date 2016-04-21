@@ -25,8 +25,12 @@ typedef struct _htmlgen_para:_thread_para
 	int port = 12228;
 }HTMLGEN_THREA_PARA,*PHTMLGEN_THREAD_PARA;
 
-
-
+typedef struct _func
+{
+    string name;
+    string retType;
+    vector<string> args;
+}FUNCTION;
 
 typedef struct _attr
 {
@@ -62,11 +66,13 @@ private:
 	void LoadTagAttrubites(string path, string name);
 	void LoadTypeValues(string path, string name);
 	int ReadDic(const char* dicfile, vector<string>& list);
-	void GenerateTempl(PTMPL_NODE src, char* dst);
     void GenerateTempl(const char* src, char* dst);
     void GenerateFromVector(vector<string> &strs, char* dst, int dstsize, int& dstlen);
-	string GetRandomLine_u(int id);
-	string GetRandomAttrExp(string tag);
-	string GetRandomTag(int id);
+	
+    string GenTagAttrExp(string tag);
+
+	string GenHtmlLine(int id);
+    string GenJsFunction(string name);
+    string GenJsLine();
 };
 

@@ -196,203 +196,6 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
     return list.size();
 }
 
-// not used!
-void HtmlGenThread::GenerateTempl(PTMPL_NODE src, char * dst)
-{
-    if (src == NULL || dst == NULL)
-        return;
-
-    int rd;
-    size_t dstlen = 0;
-    int dstsize = m_para->buffSize;
-
-    for (PTMPL_NODE p = src; p != NULL; p = p->next)
-    {
-        switch (p->type)
-        {
-        case 0:
-            break;
-        case '[vl]':
-        {
-            if (!m_type_values["text"].empty())
-            {
-                vector<string>& values = m_type_values["text"];
-                rd = random(0, values.size());
-                string &str = values[rd];
-                memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                dstlen += str.size();
-            }
-            break;
-        }
-        case '[nr]':
-        {
-            rd = rand();
-            string str = to_string(rd * rd + rd);
-            memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-            dstlen += str.size();
-            break;
-        }
-        case '[el]':
-        {
-            if (!m_tags.empty())
-            {
-                rd = random(0, m_tags.size());
-                string &str = m_tags[rd];
-                memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                dstlen += str.size();
-            }
-            break;
-        }
-        case '[ev]':
-        {
-            if (!m_events.empty())
-            {
-                rd = random(0, m_events.size());
-                string &str = m_events[rd];
-                memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                dstlen += str.size();
-            }
-            break;
-        }
-        case '[ef]':
-        {
-            if (!m_evfunctions.empty())
-            {
-                rd = random(0, m_evfunctions.size());
-                string &str = m_evfunctions[rd];
-                memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                dstlen += str.size();
-            }
-            break;
-        }
-        case '[at]':
-        {
-            if (!m_tag_attributes.empty() && !m_tags.empty())
-            {
-                int tr;
-                string tag;
-                int count = 0;
-                do
-                {
-                    if (count++ >= 10)
-                        break;
-                    tr = random(0, m_tags.size());
-                    tag = m_tags[tr];
-                } while (m_tag_attributes[tag].empty());
-
-                vector<ATTRIBUTE> &attr = m_tag_attributes[tag];
-                if (!attr.empty())
-                {
-                    rd = random(0, attr.size());
-                    string &str = attr[rd].name;
-                    memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                    dstlen += str.size();;
-                }
-            }
-
-            break;
-        }
-        case '[ae]':
-        {
-            string tag;
-            char* t_start = p->data + sizeof(p->data);
-            while (*(--t_start) != '<' && *t_start != '\n' && t_start > p->data);
-            if (t_start[0] == '<')
-            {
-                char* t_end = t_start;
-                while (*(++t_end) != ' ' && t_end < p->data + sizeof(p->data));
-                if (t_end < p->data + sizeof(p->data))
-                {
-                    tag.assign(++t_start, t_end - t_start);
-                    string str = GetRandomAttrExp(tag);
-                    if (!str.empty())
-                    {
-                        memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                        dstlen += str.size();
-                    }
-                }
-            }
-
-            break;
-        }
-        case '[sf]':
-        {
-            char data[100];
-            sprintf_s(data, "window.location.href = 'http://%s:%d';",
-                m_para->serverip.c_str(), m_para->port);
-            memcpy_s(dst + dstlen, dstsize - dstlen, data, strlen(data));
-            dstlen += strlen(data);
-            break;
-        }
-        case '[cc]': // 未完成
-        {
-            char* data = "\"IE=IE7\"";
-            memcpy_s(dst + dstlen, dstsize - dstlen, data, strlen(data));
-            dstlen += strlen(data);
-            break;
-        }
-        case '[n1]':
-        case '[n2]':
-        case '[n3]':
-        case '[n4]':
-        case '[n5]':
-        case '[n6]':
-        case '[n7]':
-        case '[n8]':
-        case '[n9]':
-        {
-            int id = ((char*)&p->type)[1];
-            dst[dstlen++] = (char)random('0', id);
-            break;
-        }
-        case '[u1]':
-        case '[u2]':
-        case '[u3]':
-        case '[u4]':
-        case '[u5]':
-        case '[u6]':
-        case '[u7]':
-        case '[u8]':
-        case '[u9]':
-        {
-            int id = ((char*)&p->type)[1] - '0';
-            if (!m_ufile[id].empty())
-            {
-                rd = random(0, m_ufile[id].size());
-                string &str = m_ufile[id][rd];
-                memcpy_s(dst + dstlen, dstsize - dstlen, str.c_str(), str.size());
-                dstlen += str.size();;
-            }
-            break;
-        }
-        case '[e1]':
-        case '[e2]':
-        case '[e3]':
-        case '[e4]':
-        case '[e5]':
-        case '[e6]':
-        case '[e7]':
-        case '[e8]':
-        case '[e9]':
-        {
-            int id = ((char*)&p->type)[1] - '0';
-            for (size_t j = 0; j < id; j++)
-            {
-                string line = GetRandomTag(j);
-                memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
-                dstlen += line.size();
-            }
-            break;
-        }
-        default:
-            break;
-        }
-        memcpy_s(dst + dstlen, dstsize - dstlen, p->data, strlen(p->data));
-        dstlen += strlen(p->data);
-    }
-    dst[dstlen] = 0;
-}
-
 void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 {
     if (src == NULL || dst == NULL)
@@ -426,7 +229,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             }
             else if (memcmp(tmp + i, "[vl]", 4) == 0)
             {
-                GenerateFromVector(m_type_values["text"], dst, dstsize, dstlen);
+                GenerateFromVector(m_type_values["str"], dst, dstsize, dstlen);
                 i += 3;
                 continue;
             }
@@ -494,7 +297,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                     if (t_end < tmp + i)
                     {
                         tag.assign(++t_start, t_end - t_start);
-                        string attexp = GetRandomAttrExp(tag);
+                        string attexp = GenTagAttrExp(tag);
                         if (!attexp.empty())
                         {
                             memcpy_s(dst + dstlen, dstsize - dstlen, attexp.c_str(), attexp.size());
@@ -536,9 +339,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             {
                 if (tmp[i + 2] >= '0' && tmp[i + 2] <= '9')
                 {
-                    string line = GetRandomLine_u(tmp[i + 2] - '0');
-                    memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
-                    dstlen += line.length();
+                    GenerateFromVector(m_ufile[tmp[i + 2] - '0'], dst, dstsize, dstlen);
                 }
                 i += 3;
                 continue;
@@ -549,7 +350,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                 {
                     for (size_t j = '0'; j < tmp[i + 2]; j++)
                     {
-                        string line = GetRandomTag(j - '0');
+                        string line = GenHtmlLine(j - '0');
                         memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
                         dstlen += line.length();
                     }
@@ -577,15 +378,7 @@ void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, int dst
     }
 }
 
-string HtmlGenThread::GetRandomLine_u(int id)
-{
-    if (m_ufile[id].empty())
-        return string();
-    int r = random(0, m_ufile[id].size());
-    return m_ufile[id][r];
-}
-
-string HtmlGenThread::GetRandomAttrExp(string tag)
+string HtmlGenThread::GenTagAttrExp(string tag)
 {
     int rd = rand();
     ATTRIBUTE attr;
@@ -622,7 +415,7 @@ string HtmlGenThread::GetRandomAttrExp(string tag)
     return attr.name + "=" + valueortype;
 }
 
-string HtmlGenThread::GetRandomTag(int id)
+string HtmlGenThread::GenHtmlLine(int id)
 {
     if (m_tags.empty())
         return string();
@@ -640,9 +433,9 @@ string HtmlGenThread::GetRandomTag(int id)
         event_exp.append("();'");
     }
 
-    string attr_exp1 = GetRandomAttrExp(tag);
-    string attr_exp2 = GetRandomAttrExp(tag);
-    string attr_exp3 = GetRandomAttrExp(tag);
+    string attr_exp1 = GenTagAttrExp(tag);
+    string attr_exp2 = GenTagAttrExp(tag);
+    string attr_exp3 = GenTagAttrExp(tag);
 
     char* templ = "<%s id='id_%d' %s %s %s %s>fuzz</%s>\n\0";
     char result[1024];
@@ -653,4 +446,42 @@ string HtmlGenThread::GetRandomTag(int id)
         attr_exp3.c_str(),
         tag.c_str());
     return string(result);
+}
+
+string HtmlGenThread::GenJsFunction(string name)
+{
+    string funcstr = "function " + name + "()\n{\n";
+    int count = random(0, 30);
+    for (int i = 0; i < count; i++)
+    {
+        funcstr += "    ";
+        funcstr += GenJsLine();
+        funcstr += "\n";
+    }
+    funcstr += "}\n";
+    return funcstr;
+}
+
+string HtmlGenThread::GenJsLine()
+{
+    int rd;
+    int sw = random(0, 10);
+    switch (sw)
+    {
+    case 0: // 属性赋值
+        break;
+    case 1: // 函数调用
+        break;
+    case 2: // execCommand
+        break;
+    case 3: // event操作
+        break;
+    case 4: // 创建元素
+        break;
+    default:
+        break;
+    }
+
+    int id = random(0, 9);
+    return string();
 }

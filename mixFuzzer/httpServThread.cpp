@@ -100,6 +100,7 @@ DWORD WINAPI SocketThread(PVOID para)
             htmlPath.append(crashpos);
             htmlPath.append(TEXT("\\"));
             CreateDirectory(htmlPath.c_str(), NULL);
+            glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd hh:mm:ss]\n"));
             glogger.error(TEXT("find crash at: ") + crashpos);
 
             // 补全文件名
