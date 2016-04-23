@@ -51,11 +51,11 @@ void HtmlGenThread::Init()
         ReadDic(filename, m_ufile[i]);
     }
     ReadDic("dic\\events.txt", m_events);
-    ReadDic("dic\\event-functions.txt", m_evfunctions);
-    ReadDic("dic\\tags.txt", m_tags);
+    ReadDic("dic\\eventFunctions.txt", m_evfunctions);
+    ReadDic("dic\\HtmlTags.txt", m_tags);
     ReadDic("dic\\commands.txt", m_commands);
 
-    LoadTagAttrubites("dic\\attributes\\", "attributes-*.txt");
+    LoadTagAttrubites("dic\\attributes_html\\", "attributes-*.txt");
     LoadTypeValues("dic\\values\\", "values-*.txt");
 
     // rand seed
@@ -157,7 +157,6 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
     errno_t err = fopen_s(&file, dicfile, "r");
     if (err != 0)
     {
-        list.push_back("<error>");
         return 0;
     }
 
@@ -167,7 +166,6 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
     {
         fclose(file);
         delete[] ufiledata;
-        list.push_back("<error>");
         return 0;
     }
     ufiledata[nread] = 0;
@@ -191,8 +189,6 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
     }
     fclose(file);
     delete[] ufiledata;
-    if(list.size() == 0)
-        list.push_back("<empty>");
     return list.size();
 }
 
@@ -464,6 +460,7 @@ string HtmlGenThread::GenJsFunction(string name)
 
 string HtmlGenThread::GenJsLine()
 {
+	string line = "try{";
     int rd;
     int sw = random(0, 10);
     switch (sw)

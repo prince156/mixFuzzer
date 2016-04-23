@@ -20,8 +20,8 @@
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
 	"================================================================================\n\n")
 
-#define CDB_X86 TEXT("tools\\cdb_x86.exe")
-#define CDB_X64 TEXT("tools\\cdb_x64.exe")
+#define CDB_X86 TEXT("cdb_x86.exe")
+#define CDB_X64 TEXT("cdb_x64.exe")
 #define GFLAGS_X86 TEXT("tools\\gflags_x86.exe")
 #define GFLAGS_X64 TEXT("tools\\gflags_x64.exe")
 
@@ -143,14 +143,6 @@ int _tmain(int argc, TCHAR** argv)
     // 创建crash目录
     CreateDirectory(outPath.c_str(), NULL);
 
-    // 读取模板文件
-    LoudTemplate(htmlTemplNodes, htmlTempls, BUFF_SIZE);
-    if (htmlTempls.size() == 0)
-    {
-        glogger.error(TEXT("no template available"));
-        exit(_getch());
-    }
-
     // semaphore
     HANDLE semaphorep = CreateSemaphore(NULL, 1, 1, TEXT("mixfuzzer_sem_htmlbuff_p"));
     HANDLE semaphorec = CreateSemaphore(NULL, 0, 1, TEXT("mixfuzzer_sem_htmlbuff_c"));    
@@ -177,6 +169,14 @@ int _tmain(int argc, TCHAR** argv)
     HtmlGenThread htmlGenThread(&htmlGenPara);
     if (mode != TEXT("client"))
     {
+		// 读取模板文件
+		LoudTemplate(htmlTemplNodes, htmlTempls, BUFF_SIZE);
+		if (htmlTempls.size() == 0)
+		{
+			glogger.error(TEXT("no template available"));
+			exit(_getch());
+		}
+
         // 启动http服务线程            
         if (!httpServThread.Run())
         {
@@ -294,6 +294,8 @@ int _tmain(int argc, TCHAR** argv)
             exit(_getch());
         }
         Sleep(waitTime); // 尽量等待一段时间
+		if (waitTime > 1000)
+			waitTime -= 100;
 
         // 获取PID
         vector<DWORD> procIDs = GetAllProcessId(appName);
@@ -305,7 +307,7 @@ int _tmain(int argc, TCHAR** argv)
         }
 
         // attach调试器	
-        sCommandLine = cdb_exe + TEXT(" -o -p ") + to_tstring(procIDs[0]);
+        sCommandLine = TEXT("tools\\") + cdb_exe + TEXT(" -o -p ") + to_tstring(procIDs[0]);
         glogger.info(TEXT("Attach ") + cdb_exe);
         glogger.info(TEXT("  -pid:") + to_tstring(procIDs[0]));
         STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
@@ -377,10 +379,13 @@ int _tmain(int argc, TCHAR** argv)
                 // attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
                 for (size_t i = 1; i < procIDs_new.size(); i++)
                 {
-                    glogger.info(TEXT("  new pid:") + to_tstring(procIDs_new[i]));
+                    glogger.warning(TEXT("find new pid:") + to_tstring(procIDs_new[i]));
                     procIDs.push_back(procIDs_new[i]);
                 }
                 procIDs_new.clear();
+				glogger.info(TEXT("restart fuzz ..."));
+				waitTime += 500;
+				break;
             }
 
             // 获取调试器输出
