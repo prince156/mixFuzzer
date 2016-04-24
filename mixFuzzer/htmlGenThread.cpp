@@ -50,9 +50,9 @@ void HtmlGenThread::Init()
         sprintf_s(filename, file_f, i);
         ReadDic(filename, m_ufile[i]);
     }
-    ReadDic("dic\\events.txt", m_events);
+    ReadDic("dic\\eventNames.txt", m_events);
     ReadDic("dic\\eventFunctions.txt", m_evfunctions);
-    ReadDic("dic\\HtmlTags.txt", m_tags);
+    ReadDic("dic\\htmlTags.txt", m_tags);
     ReadDic("dic\\commands.txt", m_commands);
 
     LoadTagAttrubites("dic\\attributes_html\\", "attributes-*.txt");

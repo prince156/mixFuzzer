@@ -147,7 +147,17 @@ int _tmain(int argc, TCHAR** argv)
     HANDLE semaphorep = CreateSemaphore(NULL, 1, 1, TEXT("mixfuzzer_sem_htmlbuff_p"));
     HANDLE semaphorec = CreateSemaphore(NULL, 0, 1, TEXT("mixfuzzer_sem_htmlbuff_c"));    
 
-    // 进入client模式
+    // client模式
+	if (mode != TEXT("client"))
+	{
+		// 读取模板文件
+		LoudTemplate(htmlTemplNodes, htmlTempls, BUFF_SIZE);
+		if (htmlTempls.size() == 0)
+		{
+			glogger.error(TEXT("no template available"));
+			exit(_getch());
+		}
+	}
     HTTPSERV_THREAD_PARA httpServPara;
     httpServPara.htmlBuff = htmlBuff;
     httpServPara.semHtmlbuff_c = semaphorec;
@@ -169,14 +179,6 @@ int _tmain(int argc, TCHAR** argv)
     HtmlGenThread htmlGenThread(&htmlGenPara);
     if (mode != TEXT("client"))
     {
-		// 读取模板文件
-		LoudTemplate(htmlTemplNodes, htmlTempls, BUFF_SIZE);
-		if (htmlTempls.size() == 0)
-		{
-			glogger.error(TEXT("no template available"));
-			exit(_getch());
-		}
-
         // 启动http服务线程            
         if (!httpServThread.Run())
         {
@@ -377,7 +379,7 @@ int _tmain(int argc, TCHAR** argv)
                 //SendMessage(,);
 
                 // attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
-                for (size_t i = 1; i < procIDs_new.size(); i++)
+                for (size_t i = 0; i < procIDs_new.size(); i++)
                 {
                     glogger.warning(TEXT("find new pid:") + to_tstring(procIDs_new[i]));
                     procIDs.push_back(procIDs_new[i]);
