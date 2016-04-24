@@ -50,13 +50,17 @@ void HtmlGenThread::Init()
         sprintf_s(filename, file_f, i);
         ReadDic(filename, m_ufile[i]);
     }
-    ReadDic("dic\\eventNames.txt", m_events);
-    ReadDic("dic\\eventFunctions.txt", m_evfunctions);
+    ReadDic("dic\\eventNames.txt", m_evts);
+    ReadDic("dic\\eventFunctions.txt", m_evtfuncs);
     ReadDic("dic\\htmlTags.txt", m_tags);
+	ReadDic("dic\\domTags.txt", m_dtags);
     ReadDic("dic\\commands.txt", m_commands);
 
-    LoadTagAttrubites("dic\\attributes_html\\", "attributes-*.txt");
-    LoadTypeValues("dic\\values\\", "values-*.txt");
+	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
+	InitTagProperties("dic\\attributes_dom\\", "attributes-*.txt", m_dtag_props);
+	InitTagFunctions("dic\\functions\\", "functions-*.txt", m_dtag_funcs);
+    InitTypeValues("dic\\values\\", "values-*.txt", m_type_values);
+	HandleInheritation();
 
     // rand seed
     char* chr = new char[1];
@@ -66,7 +70,88 @@ void HtmlGenThread::Init()
     file_f = NULL;
 }
 
-void HtmlGenThread::LoadTagAttrubites(string path, string name)
+void HtmlGenThread::InitTagFunctions(
+	const string & path, 
+	const string & name, 
+	map<string, vector<FUNCTION>>& tag_funcs)
+{
+	if (name.empty() || path.empty())
+		return;
+
+	_finddata_t FileInfo;
+	intptr_t hh = _findfirst((path + name).c_str(), &FileInfo);
+	if (hh == -1L)
+		return;
+
+	do
+	{
+		//判断是否目录
+		if (FileInfo.attrib & _A_SUBDIR)
+			continue;
+		else
+		{
+			vector<string> func_lines;
+			vector<FUNCTION> funcs;
+			string filepath = path;
+			filepath.append(FileInfo.name);
+			ReadDic(filepath.c_str(), func_lines);
+			if (func_lines.empty())
+				continue;
+
+			for each (string line in func_lines)
+			{
+				// 去除所有空格
+				RemoveAllChar(line, ' ');
+
+				// 去除空行
+				if (line.empty())
+					continue;
+
+				// 去除注释
+				if (line.front() == '#')
+					continue;
+
+				// 保存继承关系
+				if (line.front() == '$')
+				{
+					vector<string> parents = SplitString(line, ',');
+					for each (string parent in parents)
+					{
+						if (parent.front() == '$')
+							funcs.push_back(FUNCTION{ parent, "", vector<string>() });
+					}					
+					continue;
+				}
+
+				// 正常函数信息
+				string name = line.substr(0, line.find_first_of(':'));
+				string value_line;
+				if (line.find_first_of(':') != string::npos)
+					value_line = line.substr(line.find_first_of(':') + 1, string::npos);
+				else
+					value_line.clear();
+				vector<string> values = SplitString(value_line, ',');
+				if (values.size() > 0)
+				{
+					string ret = values[0];
+					values.erase(values.begin());
+					funcs.push_back(FUNCTION{ name, ret, values });
+				}				
+			}
+
+			string tag = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
+			tag = tag.substr(0, tag.find_last_of('.'));
+			tag_funcs.insert(make_pair(tag, funcs));
+		}
+	} while (_findnext(hh, &FileInfo) == 0);
+
+	_findclose(hh);
+}
+
+void HtmlGenThread::InitTagProperties(
+	const string &path, 
+	const string &name, 
+	map<string, vector<ATTRIBUTE>>& tag_props)
 {
     if (name.empty() || path.empty())
         return;
@@ -85,7 +170,6 @@ void HtmlGenThread::LoadTagAttrubites(string path, string name)
         {
             vector<string> attribute_lines;
             vector<ATTRIBUTE> attributes;
-            vector<ATTRIBUTE> attributes_rw;
             string filepath = path;
             filepath.append(FileInfo.name);
             ReadDic(filepath.c_str(), attribute_lines);
@@ -94,6 +178,30 @@ void HtmlGenThread::LoadTagAttrubites(string path, string name)
 
             for each (string line in attribute_lines)
             {
+				// 去除所有空格
+				RemoveAllChar(line, ' ');
+
+				// 去除空行
+				if (line.empty())
+					continue;
+
+				// 去除注释
+				if (line.front() == '#')
+					continue;
+
+				// 保存继承关系
+				if (line.front() == '$')
+				{
+					vector<string> parents = SplitString(line, ',');
+					for each (string parent in parents)
+					{
+						if (parent.front() == '$')
+							attributes.push_back(ATTRIBUTE{ parent, vector<string>() });
+					}					
+					continue;
+				}
+
+				// 正常属性值
                 string name = line.substr(0, line.find_first_of(':'));
                 string value_line;
                 if (line.find_first_of(':') != string::npos)
@@ -102,21 +210,21 @@ void HtmlGenThread::LoadTagAttrubites(string path, string name)
                     value_line.clear();
                 vector<string> values = SplitString(value_line, ',');
                 attributes.push_back(ATTRIBUTE{ name, values });
-                if (!values.empty())
-                    attributes_rw.push_back(ATTRIBUTE{ name, values });
             }
 
             string tag = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
             tag = tag.substr(0, tag.find_last_of('.'));
-            m_tag_attributes.insert(make_pair(tag, attributes));
-            m_tag_attributes_rw.insert(make_pair(tag, attributes_rw));
+			tag_props.insert(make_pair(tag, attributes));
         }
     } while (_findnext(hh, &FileInfo) == 0);
 
     _findclose(hh);
 }
 
-void HtmlGenThread::LoadTypeValues(string path, string name)
+void HtmlGenThread::InitTypeValues(
+	const string &path, 
+	const string &name, 
+	map<string, vector<string>>& tag_values)
 {
     if (name.empty() || path.empty())
         return;
@@ -140,13 +248,148 @@ void HtmlGenThread::LoadTypeValues(string path, string name)
             if (values.empty())
                 continue;
 
+			// 处理继承关系
+			for (auto i = values.begin(); i < values.end(); i++)
+			{
+				if ((*i).front() == '$')
+				{
+					vector<string> parents = SplitString(*i, ',');
+					if (parents.size() == 1)
+						continue;
+
+					values.erase(i);
+					for each (string parent in parents)
+					{
+						if (parent.front() == '$')
+						{
+							values.insert(values.begin(), parent);
+							i = values.begin();
+						}
+					}					
+				}
+				else
+					break;
+
+			}
+
             string type = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
             type = type.substr(0, type.find_last_of('.'));
-            m_type_values.insert(make_pair(type, values));
+			tag_values.insert(make_pair(type, values));
         }
     } while (_findnext(hh, &FileInfo) == 0);
 
     _findclose(hh);
+}
+
+void HtmlGenThread::HandleInheritation()
+{
+	// 处理m_dtag_props的继承数据
+	for each (auto item in m_dtag_props)
+	{
+		for (auto i = m_dtag_props[item.first].begin(); i < m_dtag_props[item.first].end();)
+		{
+			if ((*i).name.front() == '$')
+			{
+				string parent = string((*i).name.c_str() + 1);
+				m_dtag_props[item.first].erase(i);
+				if (!m_dtag_props[parent].empty())
+				{
+					for each (auto pitem in m_dtag_props[parent])
+					{
+						m_dtag_props[item.first].push_back(pitem);
+					}
+				}
+				i = m_dtag_props[item.first].begin();
+			}
+			else
+				i++;
+		}
+	}
+
+	// 处理m_tag_props的继承数据
+	for each (auto item in m_tag_props)
+	{
+		for (auto i = m_tag_props[item.first].begin(); i < m_tag_props[item.first].end();)
+		{
+			if ((*i).name.front() == '$')
+			{
+				string parent = string((*i).name.c_str() + 1);
+				m_tag_props[item.first].erase(i);
+				if (!m_tag_props[parent].empty())
+				{
+					for each (auto pitem in m_tag_props[parent])
+					{
+						m_tag_props[item.first].push_back(pitem);
+					}
+				}
+				i = m_tag_props[item.first].begin();
+			}
+			else
+				i++;
+		}
+	}
+
+	// 处理m_dtag_funcs的继承数据
+	for each (auto item in m_dtag_funcs)
+	{
+		for (auto i = m_dtag_funcs[item.first].begin(); i < m_dtag_funcs[item.first].end();)
+		{
+			if ((*i).name.front() == '$')
+			{
+				string parent = string((*i).name.c_str() + 1);
+				m_dtag_funcs[item.first].erase(i);
+				if (!m_dtag_funcs[parent].empty())
+				{
+					for each (auto pitem in m_dtag_funcs[parent])
+					{
+						m_dtag_funcs[item.first].push_back(pitem);
+					}
+				}
+				i = m_dtag_funcs[item.first].begin();
+			}
+			else
+				i++;
+		}
+	}
+
+	// 处理m_type_values的继承数据
+	for each (auto item in m_type_values)
+	{
+		for (auto i = m_type_values[item.first].begin(); i < m_type_values[item.first].end();)
+		{
+			if ((*i).front() == '$')
+			{
+				string parent = string((*i).c_str() + 1);
+				m_type_values[item.first].erase(i);
+				if (!m_type_values[parent].empty())
+				{
+					for each (auto pitem in m_type_values[parent])
+					{
+						m_type_values[item.first].push_back(pitem);
+					}
+				}
+				i = m_type_values[item.first].begin();
+			}
+			else
+				break;
+		}
+	}
+
+	// 处理未赋值tag
+	for each (string tag in m_tags)
+	{
+		if (m_tag_props.find(tag) == m_tag_props.end())
+		{
+			m_tag_props.insert(make_pair(tag, m_tag_props["common"]));
+		}
+	}
+	for each (string tag in m_dtags)
+	{
+		if (m_dtag_props.find(tag) == m_dtag_props.end())
+		{
+			m_dtag_props.insert(make_pair(tag, m_dtag_props["element"]));
+		}
+	}
 }
 
 
@@ -245,19 +488,19 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             }
             else if (memcmp(tmp + i, "[ev]", 4) == 0)
             {
-                GenerateFromVector(m_events, dst, dstsize, dstlen);
+                GenerateFromVector(m_evts, dst, dstsize, dstlen);
                 i += 3;
                 continue;
             }
             else if (memcmp(tmp + i, "[ef]", 4) == 0)
             {
-                GenerateFromVector(m_evfunctions, dst, dstsize, dstlen);
+                GenerateFromVector(m_evtfuncs, dst, dstsize, dstlen);
                 i += 3;
                 continue;
             }
             else if (memcmp(tmp + i, "[at]", 4) == 0)
             {
-                if (!m_tag_attributes.empty() && !m_tags.empty())
+                if (!m_tag_props.empty() && !m_tags.empty())
                 {
                     string tag;
                     int count = 0;
@@ -267,15 +510,15 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                             break;
                         rd = random(0, m_tags.size());
                         tag = m_tags[rd];
-                    } while (m_tag_attributes[tag].empty());
+                    } while (m_tag_props[tag].empty());
 
-                    if (!m_tag_attributes[tag].empty())
+                    if (!m_tag_props[tag].empty())
                     {
-                        rd = random(0, m_tag_attributes[tag].size());
+                        rd = random(0, m_tag_props[tag].size());
                         memcpy_s(dst + dstlen, dstsize - dstlen,
-                            m_tag_attributes[tag][rd].name.c_str(),
-                            m_tag_attributes[tag][rd].name.size());
-                        dstlen += m_tag_attributes[tag][rd].name.size();
+							m_tag_props[tag][rd].name.c_str(),
+							m_tag_props[tag][rd].name.size());
+                        dstlen += m_tag_props[tag][rd].name.size();
                     }
                 }
                 i += 3;
@@ -374,27 +617,14 @@ void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, int dst
     }
 }
 
-string HtmlGenThread::GenTagAttrExp(string tag)
-{
-    int rd = rand();
-    ATTRIBUTE attr;
-    if (rd < 0x3fff)
-    {
-        if (m_tag_attributes_rw["common"].empty())
-            return string();
-        rd = random(0, m_tag_attributes_rw["common"].size());
-        attr = m_tag_attributes_rw["common"][rd];
-    }
-    else
-    {
-        if (m_tag_attributes_rw[tag].empty())
-            return string();
-        rd = random(0, m_tag_attributes_rw[tag].size());
-        attr = m_tag_attributes_rw[tag][rd];
-    }
-
+string HtmlGenThread::GenTagAttrExp(const string &tag)
+{    
+	if (m_tag_props[tag].empty())
+		return string();
+	int rd = random(0, m_tag_props[tag].size());
+	ATTRIBUTE attr = m_tag_props[tag][rd];
     if (attr.values.empty())
-        return string();
+        return attr.name + "=\'\'";
 
     int vr = random(0, attr.values.size());
     string valueortype = attr.values[vr];
@@ -402,7 +632,7 @@ string HtmlGenThread::GenTagAttrExp(string tag)
     {
         string type = valueortype.substr(1, string::npos);
         if (m_type_values[type].empty())
-            return string();
+			return attr.name + "=\'\'";
 
         int tr = random(0, m_type_values[type].size());
         valueortype = m_type_values[type][tr];
@@ -419,11 +649,11 @@ string HtmlGenThread::GenHtmlLine(int id)
     string tag = m_tags[rd];
 
     string event_exp = "";
-    if (!m_evfunctions.empty())
+    if (!m_evtfuncs.empty())
     {
         char fr = random(0, 3) + '0';
-        rd = random(0, m_evfunctions.size());
-        event_exp.assign(m_evfunctions[rd]);
+        rd = random(0, m_evtfuncs.size());
+        event_exp.assign(m_evtfuncs[rd]);
         event_exp.append("='fuzz");
         event_exp.append(&fr, 1);
         event_exp.append("();'");
@@ -444,7 +674,7 @@ string HtmlGenThread::GenHtmlLine(int id)
     return string(result);
 }
 
-string HtmlGenThread::GenJsFunction(string name)
+string HtmlGenThread::GenJsFunction(const string &name)
 {
     string funcstr = "function " + name + "()\n{\n";
     int count = random(0, 30);
