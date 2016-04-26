@@ -25,18 +25,12 @@ typedef struct _htmlgen_para:_thread_para
 	int port = 12228;
 }HTMLGEN_THREA_PARA,*PHTMLGEN_THREAD_PARA;
 
-typedef struct _func
-{
-    string name;
-    string retType;
-    vector<string> argsType;
-}FUNCTION;
-
 typedef struct _attr
 {
 	string name;
+	string type;
 	vector<string> values;
-}ATTRIBUTE;
+}PROPERTY;
 
 class HtmlGenThread : public GThread
 {
@@ -52,12 +46,11 @@ private:
 	vector<string> m_evts;
 	vector<string> m_evtfuncs;
 	vector<string> m_tags;	// html tags
-	vector<string> m_dtags;	// dom tags
     vector<string> m_commands;
 
-	map<string, vector<ATTRIBUTE>> m_tag_props;
-	map<string, vector<FUNCTION>> m_dtag_funcs;	
-    map<string, vector<ATTRIBUTE>> m_dtag_props;
+	map<string, vector<PROPERTY>> m_tag_props;
+	map<string, vector<PROPERTY>> m_dtag_funcs;
+    map<string, vector<PROPERTY>> m_dtag_props;
 	map<string, vector<string>> m_type_values;
 
 private:
@@ -66,8 +59,10 @@ private:
 	void Init();
 
 	int ReadDic(const char* dicfile, vector<string>& list);
-	void InitTagFunctions(const string &path, const string &name, map<string, vector<FUNCTION>>& tag_funcs);
-	void InitTagProperties(const string &path, const string &name, map<string, vector<ATTRIBUTE>>& tag_props);
+	void InitTagProperties(const string &path, 
+		const string &name, 
+		map<string, vector<PROPERTY>>& tag_funcs,
+		bool withType = true);
 	void InitTypeValues(const string &path, const string &name, map<string, vector<string>>& tag_values);
 	void HandleInheritation();
 

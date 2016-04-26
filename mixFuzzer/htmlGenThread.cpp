@@ -53,14 +53,13 @@ void HtmlGenThread::Init()
     ReadDic("dic\\eventNames.txt", m_evts);
     ReadDic("dic\\eventFunctions.txt", m_evtfuncs);
     ReadDic("dic\\htmlTags.txt", m_tags);
-	ReadDic("dic\\domTags.txt", m_dtags);
     ReadDic("dic\\commands.txt", m_commands);
 
-	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
+	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props, false);
 	InitTagProperties("dic\\attributes_dom\\", "attributes-*.txt", m_dtag_props);
-	InitTagFunctions("dic\\functions\\", "functions-*.txt", m_dtag_funcs);
+	InitTagProperties("dic\\functions\\", "functions-*.txt", m_dtag_funcs);
     InitTypeValues("dic\\values\\", "values-*.txt", m_type_values);
-	HandleInheritation();
+	HandleInheritation(); // 处里继承
 
     // rand seed
     char* chr = new char[1];
@@ -70,88 +69,11 @@ void HtmlGenThread::Init()
     file_f = NULL;
 }
 
-void HtmlGenThread::InitTagFunctions(
-	const string & path, 
-	const string & name, 
-	map<string, vector<FUNCTION>>& tag_funcs)
-{
-	if (name.empty() || path.empty())
-		return;
-
-	_finddata_t FileInfo;
-	intptr_t hh = _findfirst((path + name).c_str(), &FileInfo);
-	if (hh == -1L)
-		return;
-
-	do
-	{
-		//判断是否目录
-		if (FileInfo.attrib & _A_SUBDIR)
-			continue;
-		else
-		{
-			vector<string> func_lines;
-			vector<FUNCTION> funcs;
-			string filepath = path;
-			filepath.append(FileInfo.name);
-			ReadDic(filepath.c_str(), func_lines);
-			if (func_lines.empty())
-				continue;
-
-			for each (string line in func_lines)
-			{
-				// 去除所有空格
-				RemoveAllChar(line, ' ');
-
-				// 去除空行
-				if (line.empty())
-					continue;
-
-				// 去除注释
-				if (line.front() == '#')
-					continue;
-
-				// 保存继承关系
-				if (line.front() == '$')
-				{
-					vector<string> parents = SplitString(line, ',');
-					for each (string parent in parents)
-					{
-						if (parent.front() == '$')
-							funcs.push_back(FUNCTION{ parent, "", vector<string>() });
-					}					
-					continue;
-				}
-
-				// 正常函数信息
-				string name = line.substr(0, line.find_first_of(':'));
-				string value_line;
-				if (line.find_first_of(':') != string::npos)
-					value_line = line.substr(line.find_first_of(':') + 1, string::npos);
-				else
-					value_line.clear();
-				vector<string> values = SplitString(value_line, ',');
-				if (values.size() > 0)
-				{
-					string ret = values[0];
-					values.erase(values.begin());
-					funcs.push_back(FUNCTION{ name, ret, values });
-				}				
-			}
-
-			string tag = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
-			tag = tag.substr(0, tag.find_last_of('.'));
-			tag_funcs.insert(make_pair(tag, funcs));
-		}
-	} while (_findnext(hh, &FileInfo) == 0);
-
-	_findclose(hh);
-}
-
 void HtmlGenThread::InitTagProperties(
 	const string &path, 
 	const string &name, 
-	map<string, vector<ATTRIBUTE>>& tag_props)
+	map<string, vector<PROPERTY>>& tag_props,
+	bool withType)
 {
     if (name.empty() || path.empty())
         return;
@@ -168,15 +90,15 @@ void HtmlGenThread::InitTagProperties(
             continue;
         else
         {
-            vector<string> attribute_lines;
-            vector<ATTRIBUTE> attributes;
+            vector<string> props_lines;
+            vector<PROPERTY> props;
             string filepath = path;
             filepath.append(FileInfo.name);
-            ReadDic(filepath.c_str(), attribute_lines);
-            if (attribute_lines.empty())
+            ReadDic(filepath.c_str(), props_lines);
+            if (props_lines.empty())
                 continue;
 
-            for each (string line in attribute_lines)
+            for each (string line in props_lines)
             {
 				// 去除所有空格
 				RemoveAllChar(line, ' ');
@@ -196,7 +118,7 @@ void HtmlGenThread::InitTagProperties(
 					for each (string parent in parents)
 					{
 						if (parent.front() == '$')
-							attributes.push_back(ATTRIBUTE{ parent, vector<string>() });
+							props.push_back(PROPERTY{ parent, "", vector<string>() });
 					}					
 					continue;
 				}
@@ -209,12 +131,23 @@ void HtmlGenThread::InitTagProperties(
                 else
                     value_line.clear();
                 vector<string> values = SplitString(value_line, ',');
-                attributes.push_back(ATTRIBUTE{ name, values });
+				if (values.size() > 0)
+				{
+					string type;
+					if (withType)
+					{
+						type = values[0];
+						values.erase(values.begin());
+					}
+					else
+						type = "$str";
+					props.push_back(PROPERTY{ name, type, values });
+				}                
             }
 
             string tag = filepath.substr(filepath.find_first_of('-') + 1, string::npos);
             tag = tag.substr(0, tag.find_last_of('.'));
-			tag_props.insert(make_pair(tag, attributes));
+			tag_props.insert(make_pair(tag, props));
         }
     } while (_findnext(hh, &FileInfo) == 0);
 
@@ -283,6 +216,23 @@ void HtmlGenThread::InitTypeValues(
 
 void HtmlGenThread::HandleInheritation()
 {
+	// 处理未赋值tag
+	for each (string tag in m_tags)
+	{
+		if (m_tag_props.find(tag) == m_tag_props.end())
+		{
+			m_tag_props.insert(make_pair(tag, vector<PROPERTY>{ {"$common"} }));
+		}
+		if (m_dtag_props.find(tag) == m_dtag_props.end())
+		{
+			m_dtag_props.insert(make_pair(tag, vector<PROPERTY>{ {"$HTMLElement"} }));
+		}
+		if (m_dtag_funcs.find(tag) == m_dtag_funcs.end())
+		{
+			m_dtag_funcs.insert(make_pair(tag, vector<PROPERTY>{ {"$HTMLElement"} }));
+		}
+	}
+
 	// 处理m_dtag_props的继承数据
 	for each (auto item in m_dtag_props)
 	{
@@ -372,22 +322,6 @@ void HtmlGenThread::HandleInheritation()
 			}
 			else
 				break;
-		}
-	}
-
-	// 处理未赋值tag
-	for each (string tag in m_tags)
-	{
-		if (m_tag_props.find(tag) == m_tag_props.end())
-		{
-			m_tag_props.insert(make_pair(tag, m_tag_props["common"]));
-		}
-	}
-	for each (string tag in m_dtags)
-	{
-		if (m_dtag_props.find(tag) == m_dtag_props.end())
-		{
-			m_dtag_props.insert(make_pair(tag, m_dtag_props["element"]));
 		}
 	}
 }
@@ -622,7 +556,7 @@ string HtmlGenThread::GenTagAttrExp(const string &tag)
 	if (m_tag_props[tag].empty())
 		return string();
 	int rd = random(0, m_tag_props[tag].size());
-	ATTRIBUTE attr = m_tag_props[tag][rd];
+	PROPERTY attr = m_tag_props[tag][rd];
     if (attr.values.empty())
         return attr.name + "=\'\'";
 
