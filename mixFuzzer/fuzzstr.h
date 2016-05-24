@@ -1,6 +1,7 @@
 #pragma once
 
-vector<string> compatibleName = {
+vector<string> g_compatibleName = {
+	"",
     "<meta http-equiv=\"x-ua-compatible\" content=\"IE=5\">",
     "<meta http-equiv=\"x-ua-compatible\" content=\"IE=7\">",
     "<meta http-equiv=\"x-ua-compatible\" content=\"IE=8\">",
@@ -13,7 +14,7 @@ vector<string> compatibleName = {
     "<meta http-equiv=\"x-ua-compatible\" content=\"IE=edge\">" 
 };
 
-vector<string> doctypeName = { 
+vector<string> g_doctypeName = {
     "",
     "<!DOCTYPE html>",
     "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">",
@@ -22,4 +23,11 @@ vector<string> doctypeName = {
     "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Frameset//EN\" \"http://www.w3.org/TR/html4/frameset.dtd\">"
 };
 
+vector<string> g_browserObj = {
+	"Window",
+	"Navigator",
+	"Screen",
+	"History",
+	"Location"
+};
 

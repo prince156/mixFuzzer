@@ -24,6 +24,7 @@ HtmlGenThread::~HtmlGenThread()
 
 void HtmlGenThread::ThreadMain()
 {
+	m_funcNames.clear();
     m_htmlTempl[0] = 0;
     int tr = random(0, m_para->htmlTempls.size());
     GenerateTempl(m_para->htmlTempls[tr], m_htmlTempl);
@@ -52,12 +53,17 @@ void HtmlGenThread::Init()
     }
     ReadDic("dic\\eventNames.txt", m_evts);
     ReadDic("dic\\eventFunctions.txt", m_evtfuncs);
-    ReadDic("dic\\htmlTags.txt", m_tags);
+    ReadDic2("dic\\tags.txt", m_tag_dom);
     ReadDic("dic\\commands.txt", m_commands);
 
-	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props, false);
-	InitTagProperties("dic\\attributes_dom\\", "attributes-*.txt", m_dtag_props);
-	InitTagProperties("dic\\functions\\", "functions-*.txt", m_dtag_funcs);
+	for each (auto tag_dom in m_tag_dom)
+	{
+		m_tags.push_back(tag_dom.first);
+	}
+
+	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
+	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_dom_props);
+	InitTagProperties("dic\\attributes_dom2html5\\", "attributes-*.txt", m_dom_props);
     InitTypeValues("dic\\values\\", "values-*.txt", m_type_values);
 	HandleInheritation(); // 处里继承
 
@@ -72,8 +78,7 @@ void HtmlGenThread::Init()
 void HtmlGenThread::InitTagProperties(
 	const string &path, 
 	const string &name, 
-	map<string, vector<PROPERTY>>& tag_props,
-	bool withType)
+	map<string, vector<PROPERTY>>& tag_props)
 {
     if (name.empty() || path.empty())
         return;
@@ -118,7 +123,7 @@ void HtmlGenThread::InitTagProperties(
 					for each (string parent in parents)
 					{
 						if (parent.front() == '$')
-							props.push_back(PROPERTY{ parent, "", vector<string>() });
+							props.push_back(PROPERTY{ parent, "", "", vector<string>() });
 					}					
 					continue;
 				}
@@ -133,15 +138,29 @@ void HtmlGenThread::InitTagProperties(
                 vector<string> values = SplitString(value_line, ',');
 				if (values.size() > 0)
 				{
-					string type;
-					if (withType)
+					string type, ret;
+					type = values[0];
+					if (values[0] == "function" && values.size() > 1)	// function 
 					{
-						type = values[0];
-						values.erase(values.begin());
+						ret = values[1];
 					}
 					else
-						type = "$str";
-					props.push_back(PROPERTY{ name, type, values });
+					{
+						ret = "";
+						if (values.size() > 1)
+						{
+							ret = type;
+						}
+					}		
+					
+					if (values.size() > 1 && values[0] == "function")
+					{
+						values.erase(values.begin()); // remove type
+						values.erase(values.begin()); // remove ret
+					}
+					else
+						values.erase(values.begin()); // remove type
+					props.push_back(PROPERTY{ name, ret, type, values });
 				}                
             }
 
@@ -223,33 +242,48 @@ void HtmlGenThread::HandleInheritation()
 		{
 			m_tag_props.insert(make_pair(tag, vector<PROPERTY>{ {"$common"} }));
 		}
-		if (m_dtag_props.find(tag) == m_dtag_props.end())
-		{
-			m_dtag_props.insert(make_pair(tag, vector<PROPERTY>{ {"$HTMLElement"} }));
-		}
-		if (m_dtag_funcs.find(tag) == m_dtag_funcs.end())
-		{
-			m_dtag_funcs.insert(make_pair(tag, vector<PROPERTY>{ {"$HTMLElement"} }));
-		}
 	}
 
-	// 处理m_dtag_props的继承数据
-	for each (auto item in m_dtag_props)
+	// 处理m_dom_props的继承数据
+	for each (auto item in m_dom_props)
 	{
-		for (auto i = m_dtag_props[item.first].begin(); i < m_dtag_props[item.first].end();)
+		for (auto i = m_dom_props[item.first].begin(); i < m_dom_props[item.first].end();)
 		{
 			if ((*i).name.front() == '$')
 			{
 				string parent = string((*i).name.c_str() + 1);
-				m_dtag_props[item.first].erase(i);
-				if (!m_dtag_props[parent].empty())
+				m_dom_props[item.first].erase(i);
+				if (!m_dom_props[parent].empty())
 				{
-					for each (auto pitem in m_dtag_props[parent])
+					for each (auto pitem in m_dom_props[parent])
 					{
-						m_dtag_props[item.first].push_back(pitem);
+						m_dom_props[item.first].push_back(pitem);
 					}
 				}
-				i = m_dtag_props[item.first].begin();
+				i = m_dom_props[item.first].begin();
+			}
+			else
+				i++;
+		}
+	}
+
+	// 处理m_dom_props的继承数据
+	for each (auto item in m_dom_props)
+	{
+		for (auto i = m_dom_props[item.first].begin(); i < m_dom_props[item.first].end();)
+		{
+			if ((*i).name.front() == '$')
+			{
+				string parent = string((*i).name.c_str() + 1);
+				m_dom_props[item.first].erase(i);
+				if (!m_dom_props[parent].empty())
+				{
+					for each (auto pitem in m_dom_props[parent])
+					{
+						m_dom_props[item.first].push_back(pitem);
+					}
+				}
+				i = m_dom_props[item.first].begin();
 			}
 			else
 				i++;
@@ -280,27 +314,27 @@ void HtmlGenThread::HandleInheritation()
 	}
 
 	// 处理m_dtag_funcs的继承数据
-	for each (auto item in m_dtag_funcs)
-	{
-		for (auto i = m_dtag_funcs[item.first].begin(); i < m_dtag_funcs[item.first].end();)
-		{
-			if ((*i).name.front() == '$')
-			{
-				string parent = string((*i).name.c_str() + 1);
-				m_dtag_funcs[item.first].erase(i);
-				if (!m_dtag_funcs[parent].empty())
-				{
-					for each (auto pitem in m_dtag_funcs[parent])
-					{
-						m_dtag_funcs[item.first].push_back(pitem);
-					}
-				}
-				i = m_dtag_funcs[item.first].begin();
-			}
-			else
-				i++;
-		}
-	}
+	//for each (auto item in m_dtag_funcs)
+	//{
+	//	for (auto i = m_dtag_funcs[item.first].begin(); i < m_dtag_funcs[item.first].end();)
+	//	{
+	//		if ((*i).name.front() == '$')
+	//		{
+	//			string parent = string((*i).name.c_str() + 1);
+	//			m_dtag_funcs[item.first].erase(i);
+	//			if (!m_dtag_funcs[parent].empty())
+	//			{
+	//				for each (auto pitem in m_dtag_funcs[parent])
+	//				{
+	//					m_dtag_funcs[item.first].push_back(pitem);
+	//				}
+	//			}
+	//			i = m_dtag_funcs[item.first].begin();
+	//		}
+	//		else
+	//			i++;
+	//	}
+	//}
 
 	// 处理m_type_values的继承数据
 	for each (auto item in m_type_values)
@@ -369,6 +403,24 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
     return list.size();
 }
 
+int HtmlGenThread::ReadDic2(const char * dicfile, map<string, string>& tags)
+{
+	vector<string> lines;
+	ReadDic(dicfile, lines);
+	if (!lines.empty())
+	{
+		for each (string line in lines)
+		{
+			vector<string> tag_dom = SplitString(line, ':');
+			if (tag_dom.size() == 2)
+			{
+				tags.insert(make_pair(tag_dom[0], tag_dom[1]));
+			}
+		}		
+	}
+	return 0;
+}
+
 void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 {
     if (src == NULL || dst == NULL)
@@ -390,47 +442,33 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
         {
             if (memcmp(tmp + i, "[dt]", 4) == 0)
             {
-                GenerateFromVector(doctypeName, dst, dstsize, dstlen);
-                i += 3;
-                continue;
+                GenerateFromVector(g_doctypeName, dst, dstsize, dstlen);
             }
             else if (memcmp(tmp + i, "[cd]", 4) == 0)
             {
                 GenerateFromVector(m_commands, dst, dstsize, dstlen);
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[vl]", 4) == 0)
             {
                 GenerateFromVector(m_type_values["str"], dst, dstsize, dstlen);
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[nr]", 4) == 0)
             {
                 rd = random(0, 0x00ffffff);
                 memcpy_s(dst + dstlen, dstsize - dstlen, to_string(rd).c_str(), to_string(rd).size());
                 dstlen += to_string(rd).size();
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[el]", 4) == 0)
             {
                 GenerateFromVector(m_tags, dst, dstsize, dstlen);
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[ev]", 4) == 0)
             {
                 GenerateFromVector(m_evts, dst, dstsize, dstlen);
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[ef]", 4) == 0)
             {
                 GenerateFromVector(m_evtfuncs, dst, dstsize, dstlen);
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[at]", 4) == 0)
             {
@@ -455,8 +493,6 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                         dstlen += m_tag_props[tag][rd].name.size();
                     }
                 }
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[ae]", 4) == 0)
             {
@@ -478,24 +514,20 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                         }
                     }
                 }
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[sf]", 4) == 0)
             {
-                char* safeurl_f = "window.location.href = 'http://%s:%d';";
-                char safeurl[100];
-                sprintf_s(safeurl, safeurl_f, m_para->serverip.c_str(), m_para->port);
-                memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
+                //char* safeurl_f = "window.location.href = 'http://%s:%d';";
+                //char safeurl[100];
+                //sprintf_s(safeurl, safeurl_f, m_para->serverip.c_str(), m_para->port);
+                //memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
+				char *safeurl = "window.location.href = document.URL;";
+				memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
                 dstlen += strlen(safeurl);
-                i += 3;
-                continue;
             }
-            else if (memcmp(tmp + i, "[cc]", 4) == 0) // 未完成
+            else if (memcmp(tmp + i, "[cc]", 4) == 0) 
             {
-                GenerateFromVector(compatibleName, dst, dstsize, dstlen);
-                i += 3;
-                continue;
+                GenerateFromVector(g_compatibleName, dst, dstsize, dstlen);
             }
             else if (memcmp(tmp + i, "[n", 2) == 0 && tmp[i + 3] == ']')
             {
@@ -505,8 +537,6 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                     dst[dstlen++] = (char)random('0', id);
                     dst[dstlen] = 0;
                 }
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[u", 2) == 0 && tmp[i + 3] == ']')
             {
@@ -514,8 +544,6 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                 {
                     GenerateFromVector(m_ufile[tmp[i + 2] - '0'], dst, dstsize, dstlen);
                 }
-                i += 3;
-                continue;
             }
             else if (memcmp(tmp + i, "[e", 2) == 0 && tmp[i + 3] == ']')
             {
@@ -528,14 +556,36 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                         dstlen += line.length();
                     }
                 }
-                i += 3;
-                continue;
             }
-
+			else if (memcmp(tmp + i, "[ff]", 4) == 0) // 自动生成一个function
+			{
+				string funcName = "AutoFunc_" + to_string(m_funcNames.size());
+				string line = GenJsFunction(funcName);
+				if (!line.empty())
+				{
+					m_funcNames.push_back(funcName);
+					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
+					dstlen += line.length();
+				}
+			}
+			else if (memcmp(tmp + i, "[ln]", 4) == 0) // 自动生成一行
+			{
+				string line = GenJsLine();
+				if (!line.empty())
+				{
+					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
+					dstlen += line.length();
+				}
+			}
+			else
+			{
+				dst[dstlen++] = tmp[i];
+				continue;
+			}
+			i += 3;
         }
-
-        dst[dstlen++] = tmp[i];
-        
+		else // if(tmp[i] == '[')
+			dst[dstlen++] = tmp[i];
     }
     dst[dstlen] = 0;
     delete tmp;
@@ -562,7 +612,7 @@ string HtmlGenThread::GenTagAttrExp(const string &tag)
 
     int vr = random(0, attr.values.size());
     string valueortype = attr.values[vr];
-    if (valueortype.front() == '$')
+    if (valueortype.front() == '%')
     {
         string type = valueortype.substr(1, string::npos);
         if (m_type_values[type].empty())
@@ -611,7 +661,7 @@ string HtmlGenThread::GenHtmlLine(int id)
 string HtmlGenThread::GenJsFunction(const string &name)
 {
     string funcstr = "function " + name + "()\n{\n";
-    int count = random(0, 30);
+    int count = random(20, 30);
     for (int i = 0; i < count; i++)
     {
         funcstr += "    ";
@@ -625,24 +675,296 @@ string HtmlGenThread::GenJsFunction(const string &name)
 string HtmlGenThread::GenJsLine()
 {
 	string line = "try{";
-    int rd;
-    int sw = random(0, 10);
+	string prop_right;
+    int rd,rd2,rd3;
+    int sw = random(0, 13);
     switch (sw)
     {
-    case 0: // 属性赋值
-        break;
-    case 1: // 函数调用
-        break;
-    case 2: // execCommand
-        break;
-    case 3: // event操作
-        break;
-    case 4: // 创建元素
-        break;
+    case 0: // window对象属性赋值
+		rd = random(0, 5);
+		prop_right = GenJsLine_Property(m_dom_props["Window"], rd);
+		if(!prop_right.empty())
+			return "try{window." + prop_right + "}catch(e){}";
+		break;
+    case 1: // 对象属性赋值		
+    case 2: // 对象属性赋值
+    case 3: // 对象属性赋值
+		rd = random(0, 5);
+		if (m_type_values["id"].size() > 0)
+		{
+			prop_right = GenJsLine_Property(m_dom_props["HTMLElement"], rd);
+			if (!prop_right.empty())
+			{
+				rd2 = random(0, m_type_values["id"].size());
+				return "try{" +
+					m_type_values["id"][rd2].substr(1, m_type_values["id"][rd2].size() - 2) + "." +
+					prop_right + "}catch(e){}";
+			}
+		}
+		break;
+    case 4: // 对象属性赋值
+	case 5:
+		rd = random(0, 5);
+		prop_right = GenJsLine_Property(m_dom_props["Document"], rd);
+		if (!prop_right.empty())
+			return "try{document." + prop_right + "}catch(e){}";
+		break;
+	case 6:
+		rd = random(0, 5);
+		if (m_tags.size() > 0)
+		{
+			rd2 = random(0, m_tags.size());
+			prop_right = GenJsLine_Property(m_dom_props[m_tags[rd2]], rd);
+			if (!prop_right.empty())
+			{				
+				return "try{var els=document.getElementsByTagName(\"" + m_tags[rd2] + "\"); " +
+					"if(els.length>0)els[" + to_string(random(0, 10)) + "%els.length]." + 
+					prop_right + "}catch(e){}";
+			}
+		}	
+		break;
+	case 7: // 
+		rd = random(0, 3);
+		prop_right = GenJsLine_ExecCommand(m_dom_props["Window"], rd);
+		if (!prop_right.empty())
+		{
+			return "try{window." + prop_right + "}catch(e){}";
+		}
+		break;
+	case 8: // 
+		rd = random(0, 3);
+		if (m_type_values["id"].size() > 0)
+		{			
+			prop_right = GenJsLine_ExecCommand(m_dom_props["HTMLElement"], rd);
+			if (!prop_right.empty())
+			{
+				rd2 = random(0, m_type_values["id"].size());
+				return "try{" +
+					m_type_values["id"][rd2].substr(1, m_type_values["id"][rd2].size() - 2) + "." +
+					prop_right + "}catch(e){}";
+			}
+		}
+		break;
+	case 9:
+		rd = random(0, 3);
+		prop_right = GenJsLine_ExecCommand(m_dom_props["Document"], rd);
+		if(!prop_right.empty())
+			return "try{document." + prop_right + "}catch(e){}";
+		break;
+	case 10:
+		rd = random(0, 3);
+		if (m_tags.size() > 0)
+		{			
+			rd2 = random(0, m_tags.size());
+			prop_right = GenJsLine_ExecCommand(m_dom_props[m_tags[rd2]], rd);
+			if (!prop_right.empty())
+			{				
+				return "try{var els=document.getElementsByTagName(\"" + m_tags[rd2] + "\"); " +
+					"if(els.length>0)els[" + to_string(random(0, 10)) + "%els.length]." + 
+					prop_right + "}catch(e){}";
+			}
+		}
+		break;
+	case 11:
+		rd = random(0, m_tags.size());
+		return "try{var ee = document.createElement(\'" + m_tags[rd] + "\');" +
+			"id_" + to_string(random(0, 10)) + ".appendChild(ee);" +
+			"}catch(e){}";
+		break;
+	case 12:
+		rd = random(0, m_tags.size());
+		return "try{var ee = document.createElement(\'" + m_tags[rd] + "\');" +
+			"id_" + to_string(random(0,10)) + ".replaceChild(ee.firstChild,ee);" +
+			"}catch(e){}";
+		break;
     default:
         break;
     }
-
-    int id = random(0, 9);
     return string();
+}
+
+string HtmlGenThread::GenJsLine_Property(const vector<PROPERTY>& props, int deep)
+{
+	if (props.size() == 0)
+	{
+		return "";
+	}
+	 
+	int rd = random(0, props.size());
+	if (deep == 0)
+	{
+		if (props[rd].ret.empty())
+		{
+			return props[rd].name + ";";
+		}
+		if (props[rd].type == "function")
+		{
+			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+		}
+		else
+		{
+			return props[rd].name + "=" + GetRandomValue(props[rd].values) + ";";
+		}
+	}
+	else
+	{
+		if (props[rd].ret.empty())
+		{
+			return props[rd].name + ";";
+		}
+		else if (props[rd].type == "function")
+		{
+			if (props[rd].ret.front() == '$')
+			{
+				string right = GenJsLine_Property(m_dom_props[props[rd].ret.substr(1, string::npos)], --deep); // 递归
+				if (!right.empty())
+					return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")." + right;
+			}
+			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";			
+		}
+		else if(props[rd].ret.front() == '$')
+		{
+			string right = GenJsLine_Property(m_dom_props[props[rd].ret.substr(1, string::npos)], --deep); // 递归	
+			if (!right.empty())
+				return props[rd].name + "." + right;
+			return props[rd].name + ";";
+		}
+		else
+		{
+			return props[rd].name + "=" + GetRandomValue(props[rd].values) + ";";
+		}
+		
+	}
+	return props[rd].name + ";";
+}
+
+string HtmlGenThread::GenJsLine_ExecCommand(const vector<PROPERTY>& props, int deep)
+{
+	if (props.size() == 0)
+	{
+		return "";
+	}
+
+	int rd = random(0, props.size());
+	if (deep == 0)
+	{
+		int cd = random(0, m_commands.size());
+		if (props[rd].ret.empty())
+		{
+			return props[rd].name + ";";
+		}
+		else if (props[rd].type == "function")
+		{			
+			if (props[rd].ret.front() == '$')
+			{
+				return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")" +
+					".execCommand(" + m_commands[cd] + ");";
+			}
+			else
+			{
+				return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+			}
+		}
+		else if(props[rd].ret.front() == '$')
+		{
+			return props[rd].name + ".execCommand(" + m_commands[cd] + ");";
+		}
+	}
+	else
+	{
+		if (props[rd].ret.empty())
+		{
+			return props[rd].name + ";";
+		}
+		else if (props[rd].type == "function")
+		{
+			if (props[rd].ret.front() == '$')
+			{
+				string right = GenJsLine_ExecCommand(m_dom_props[props[rd].ret.substr(1, string::npos)], --deep); // 递归
+				if (!right.empty())
+					return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")." + right;
+			}
+			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+		}
+		else if(props[rd].ret.front() == '$')
+		{
+			string right = GenJsLine_ExecCommand(m_dom_props[props[rd].ret.substr(1, string::npos)], --deep); // 递归
+			if (!right.empty())
+				return props[rd].name + "." + right;
+			return props[rd].name + ";";
+		}
+	}
+	return props[rd].name + ";";
+}
+
+string HtmlGenThread::GetRandomValue(const vector<string>& values)
+{
+	if(values.size() == 0)
+		return "\'\'";
+
+	int vr = random(0, values.size());
+	string valueortype = values[vr];
+	if (valueortype.empty())
+	{
+		return "\'\'";
+	}
+	else if (valueortype.front() == '%')
+	{
+		string type = valueortype.substr(1, string::npos);
+		if (m_type_values[type].empty())
+			valueortype = "\'\'";
+
+		int tr = random(0, m_type_values[type].size());
+		return m_type_values[type][tr];
+	}
+	else if (valueortype.front() == '$')
+	{
+		return GetRandomObject(valueortype);
+	}
+
+	return valueortype;
+}
+
+string HtmlGenThread::GetRandomObject(const string & className)
+{
+	return "id_0";
+}
+
+string HtmlGenThread::GetRandomFuncArgs(const PROPERTY & prop)
+{
+	if (prop.values.size() == 0)
+	{
+		return string();
+	}
+	string args;
+	for each (string arg in prop.values)
+	{
+		if (arg.front() == '$')
+		{
+			args += GetRandomObject(arg.substr(1, string::npos));
+			args += ",";
+		}
+		else if (arg.front() == '%')
+		{
+			string type = arg.substr(1, string::npos);
+			if (!m_type_values[type].empty())
+			{
+				int tr = random(0, m_type_values[type].size());
+				args += m_type_values[type][tr];
+				args += ",";
+			}			
+		}
+		else
+		{
+			args += arg;
+			args += ",";
+		}
+
+	}
+
+	if (!args.empty())
+	{
+		args.erase(args.end() - 1);
+	}
+	return args;
 }
