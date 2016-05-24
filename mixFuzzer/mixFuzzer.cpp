@@ -14,7 +14,7 @@
 #include "htmlGenThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v0.8")
+#define SOFT_VER TEXT("v0.9")
 #define SOFT_LOGO TEXT(\
 	"================================================================================\n"\
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\

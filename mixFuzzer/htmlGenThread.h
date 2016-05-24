@@ -49,6 +49,7 @@ private:
 	vector<string> m_tags;	// html tags
     vector<string> m_commands;
 	vector<string> m_funcNames;
+	vector<string> m_ids;
 
 	map<string, string> m_tag_dom;
 	map<string, vector<PROPERTY>> m_tag_props;	

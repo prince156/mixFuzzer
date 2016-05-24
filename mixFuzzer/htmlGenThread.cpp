@@ -24,7 +24,8 @@ HtmlGenThread::~HtmlGenThread()
 
 void HtmlGenThread::ThreadMain()
 {
-	m_funcNames.clear();
+	m_ids = { "id_0","id_1", "id_2", "id_3", "id_4", "id_5", "id_6", "id_7", "id_8" };
+	m_funcNames = { "fuzz0", "fuzz1", "fuzz2" };
     m_htmlTempl[0] = 0;
     int tr = random(0, m_para->htmlTempls.size());
     GenerateTempl(m_para->htmlTempls[tr], m_htmlTempl);
@@ -552,8 +553,11 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                     for (size_t j = '0'; j < tmp[i + 2]; j++)
                     {
                         string line = GenHtmlLine(j - '0');
-                        memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
-                        dstlen += line.length();
+						if (!line.empty())
+						{
+							memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
+							dstlen += line.length();
+						}
                     }
                 }
             }
@@ -635,12 +639,9 @@ string HtmlGenThread::GenHtmlLine(int id)
     string event_exp = "";
     if (!m_evtfuncs.empty())
     {
-        char fr = random(0, 3) + '0';
+        int fr = random(0, m_funcNames.size());
         rd = random(0, m_evtfuncs.size());
-        event_exp.assign(m_evtfuncs[rd]);
-        event_exp.append("='fuzz");
-        event_exp.append(&fr, 1);
-        event_exp.append("();'");
+        event_exp = m_evtfuncs[rd] + "='" + m_funcNames[fr] + "();'";
     }
 
     string attr_exp1 = GenTagAttrExp(tag);
@@ -676,6 +677,7 @@ string HtmlGenThread::GenJsLine()
 {
 	string line = "try{";
 	string prop_right;
+	string tmp;
     int rd,rd2,rd3;
     int sw = random(0, 13);
     switch (sw)
@@ -773,8 +775,9 @@ string HtmlGenThread::GenJsLine()
 		break;
 	case 12:
 		rd = random(0, m_tags.size());
+		rd2 = random(0, m_ids.size());
 		return "try{var ee = document.createElement(\'" + m_tags[rd] + "\');" +
-			"id_" + to_string(random(0,10)) + ".replaceChild(ee.firstChild,ee);" +
+			m_ids[rd2] + ".replaceChild("+ m_ids[rd2] +".firstChild,ee);" +
 			"}catch(e){}";
 		break;
     default:
@@ -927,7 +930,20 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values)
 
 string HtmlGenThread::GetRandomObject(const string & className)
 {
-	return "id_0";
+	int rd = random(0,2);
+	int r1, r2;
+	switch (rd)
+	{
+	case 0:
+		r1 = random(0, m_ids.size());
+		return m_ids[r1];
+	case 1:
+		r1 = random(0, m_tags.size());
+		return "document.createElement(\"" + m_tags[r1] + "\")";
+	default:
+		r1 = random(0, m_ids.size());
+		return m_ids[r1];
+	}
 }
 
 string HtmlGenThread::GetRandomFuncArgs(const PROPERTY & prop)
