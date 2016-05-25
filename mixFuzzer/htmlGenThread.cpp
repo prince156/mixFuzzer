@@ -648,7 +648,7 @@ string HtmlGenThread::GenHtmlLine(int id)
     string attr_exp2 = GenTagAttrExp(tag);
     string attr_exp3 = GenTagAttrExp(tag);
 
-    char* templ = "<%s id='id_%d' %s %s %s %s>fuzz</%s>\n\0";
+	char* templ = "<%s id='id_%d' %s %s %s %s>fuzz0();</%s>\n\0";
     char result[1024];
     sprintf_s(result, templ, tag.c_str(), id,
         event_exp.c_str(),
