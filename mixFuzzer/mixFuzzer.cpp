@@ -12,6 +12,7 @@
 #include "common.h"
 #include "httpServThread.h"
 #include "htmlGenThread.h"
+#include "fileRecvThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
 #define SOFT_VER TEXT("v0.9")
@@ -39,6 +40,8 @@ bool TerminateAllProcess(LPCTSTR pszProcessName);
 uint32_t GetFilecountInDir(tstring dir, tstring fileext);
 void LoudTemplate(vector<PTMPL_NODE> &templnodes, vector<char*> &templs, int maxBuffSize);
 uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff);
+uint32_t SendFile(tstring serverip, uint16_t port, 
+	time_t time, const tstring &crashpos, byte type, char* data, int datalen);
 bool IsWow64();
 
 
@@ -74,7 +77,7 @@ int _tmain(int argc, TCHAR** argv)
     tstring mode = TEXT("autofuzz");
     tstring webserver = TEXT("127.0.0.1");
     tstring fuzztarget = TEXT("edge");
-    TCHAR* appName = TEXT("MicrosoftEdgeCP.exe");
+    tstring appName;
     bool isWow64 = IsWow64();
 
     tstring cdb_exe = isWow64 ? CDB_X64 : CDB_X86;
@@ -165,6 +168,7 @@ int _tmain(int argc, TCHAR** argv)
     httpServPara.port = serverPort;
     httpServPara.debugLevel = debug_level;
     httpServPara.outPath = outPath;
+	httpServPara.mode = mode;
     HTMLGEN_THREA_PARA htmlGenPara;
     htmlGenPara.buffSize = BUFF_SIZE;
     htmlGenPara.htmlBuff = htmlBuff;
@@ -175,8 +179,12 @@ int _tmain(int argc, TCHAR** argv)
     htmlGenPara.serverip = WStringToString(webserver);
     htmlGenPara.port = serverPort;
     htmlGenPara.debugLevel = debug_level;
+	FILERECV_THREAD_PARA fileRecvPara;
+	fileRecvPara.debugLevel = debug_level;
+	fileRecvPara.outPath = outPath;
     HttpServThread httpServThread(&httpServPara);
     HtmlGenThread htmlGenThread(&htmlGenPara);
+	FileRecvThread fileRecvThread(&fileRecvPara);
     if (mode != TEXT("client"))
     {
         // 启动http服务线程            
@@ -192,11 +200,19 @@ int _tmain(int argc, TCHAR** argv)
             glogger.error(TEXT("failed to create [HtmlGen] thread"));
             exit(_getch());
         }
+		
     }   
 
     // 进入webserver模式
     if (mode == TEXT("webserver"))
     {
+		// 启动file接收线程
+		if (!fileRecvThread.Run())
+		{
+			glogger.error(TEXT("failed to create [HtmlGen] thread"));
+			exit(_getch());
+		}
+
         glogger.info(TEXT("webserver mode, listening at port: %d"), serverPort);
         while (true)
         {
@@ -216,7 +232,7 @@ int _tmain(int argc, TCHAR** argv)
     else if (fuzztarget == TEXT("chrome"))
     {
         appName = TEXT("chrome.exe");
-        appPath.append(appName);
+        appPath.append(TEXT("chrome.exe"));
         appPath = TEXT("\"") + appPath + TEXT("\"");
     }
     else if (fuzztarget == TEXT("firefox"))
@@ -224,7 +240,7 @@ int _tmain(int argc, TCHAR** argv)
         sCommandLine = gflags_exe + TEXT(" /p /enable firefox.exe /full >nul");
         _tsystem(sCommandLine.c_str());
         appName = TEXT("firefox.exe");
-        appPath.append(appName);
+        appPath.append(TEXT("firefox.exe"));
         appPath = TEXT("\"") + appPath + TEXT("\"");
     }
     else if (fuzztarget == TEXT("ie"))
@@ -232,7 +248,7 @@ int _tmain(int argc, TCHAR** argv)
         sCommandLine = gflags_exe + TEXT(" /p /enable iexplore.exe /full >nul");
         _tsystem(sCommandLine.c_str());
         appName = TEXT("iexplore.exe");
-        appPath.append(appName);
+        appPath.append(TEXT("iexplore.exe"));
         appPath = TEXT("\"") + appPath + TEXT("\"");
     }
     else if (fuzztarget == TEXT("opera"))
@@ -249,6 +265,7 @@ int _tmain(int argc, TCHAR** argv)
     char* rbuff = new char[buffsize + 1];
     char* pbuff = new char[2 * buffsize + 1];
     char* pocbuff = new char[MAX_SENDBUFF_SIZE + 1];
+	char* logbuff = new char[MAX_SENDBUFF_SIZE + 1];
     while (true)
     {
         glogger.screen(TEXT("\n\n"));
@@ -274,11 +291,17 @@ int _tmain(int argc, TCHAR** argv)
             //glogger.warning(TEXT("Cannot kill explorer, restart fuzz."));
             //continue;
         }
-        if (!TerminateAllProcess(appName))
-        {
-            glogger.error(TEXT("Cannot kill %s, restart fuzz."), fuzztarget.c_str());
-            continue;
-        }
+		if (fuzztarget == TEXT("edge"))
+		{
+			TerminateAllProcess(TEXT("MicrosoftEdgeCP.exe"));
+			TerminateAllProcess(TEXT("MicrosoftEdgeCP.exe"));
+			Sleep(1000);
+		}
+		if (!TerminateAllProcess(appName.c_str()))
+		{
+			glogger.error(TEXT("Cannot kill %s, restart fuzz."), fuzztarget.c_str());
+			continue;
+		}
 
         // 启动浏览器
         glogger.info(TEXT("Start ") + fuzztarget);
@@ -300,7 +323,7 @@ int _tmain(int argc, TCHAR** argv)
 			waitTime -= 100;
 
         // 获取PID
-        vector<DWORD> procIDs = GetAllProcessId(appName);
+        vector<DWORD> procIDs = GetAllProcessId(appName.c_str());
         vector<DWORD> procIDs_new;
         if (procIDs.empty())
         {
@@ -372,7 +395,7 @@ int _tmain(int argc, TCHAR** argv)
         while (true)
         {
             // 查看是否存在新的进程
-            procIDs_new = GetAllProcessId(appName, procIDs);
+            procIDs_new = GetAllProcessId(appName.c_str(), procIDs);
             if (!procIDs_new.empty())
             {
                 // 暂停调试器
@@ -423,8 +446,7 @@ int _tmain(int argc, TCHAR** argv)
                 // 进程异常
                 if (CheckC3Ret(pbuff))
                 {
-                    glogger.warning(TEXT("break @ \"ret\", continue"));
-                    //break;
+                    glogger.warning(TEXT("break @ \"ret\", continue"));                   
                     WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
                     pbuff[0] = 0;
                     continue;
@@ -448,6 +470,7 @@ int _tmain(int argc, TCHAR** argv)
 
                 // 判定为crash 
                 glogger.error(TEXT("!! find crash !!"));
+				pocbuff[0] = 0;
                 GetPrevHTML(webserver, serverPort, pocbuff);
                 if (debug_level > 0)
                 {
@@ -487,6 +510,8 @@ int _tmain(int argc, TCHAR** argv)
                 logPath.append(TEXT(".log"));
 
                 // 写入html文件
+				if (mode == TEXT("client"))
+					SendFile(webserver, 12220, ct, crashpos, 'H', pocbuff, strlen(pocbuff));
                 FILE* htmlFile;
                 _tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
                 if (htmlFile == NULL)
@@ -496,41 +521,50 @@ int _tmain(int argc, TCHAR** argv)
                 }
                 fwrite(pocbuff, 1, strlen(pocbuff), htmlFile);
                 fclose(htmlFile);
+				
+				// log文件                
+				logbuff[0] = 0;
+				strcat(logbuff, "*** mixFuzzer ***\n");
+                strcat(logbuff, pbuff);
 
-                // 写入log文件
-                FILE* logFile;
-                _tfopen_s(&logFile, logPath.c_str(), TEXT("w"));
-                if (logFile == NULL)
-                {
-                    glogger.error(TEXT("can not create log file"));
-                    break;
-                }
-                fwrite("*** mixFuzzer ***\n", 1, 18, logFile);
-                fwrite(pbuff, 1, strlen(pbuff), logFile);
-
-                fwrite("\n\n*** crash info ***\n", 1, 21, logFile);
+				strcat(logbuff, "\n\n*** crash info ***\n");
                 WriteFile(inputPipeW, "r\n", 2, &nwrite, NULL);
-                if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize)> 0)
-                    fwrite(pbuff, 1, strlen(pbuff), logFile);
+				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
+				{
+					strcat(logbuff, pbuff);
+				}
 
                 // *** stack tracing ***
-                fwrite("\n\n*** stack tracing ***\n", 1, 24, logFile);
+                strcat(logbuff, "\n\n*** stack tracing ***\n");
                 WriteFile(inputPipeW, "kb\n", 3, &nwrite, NULL);
                 while (GetDebugInfo(outputPipeR, pbuff, buffsize) > 0)
                 {
-                    fwrite(pbuff, 1, strlen(pbuff), logFile);
+					strcat(logbuff, pbuff);
                 }
 
                 // *** module info ***
-                fwrite("\n\n*** module info ***\n", 1, 22, logFile);
+                strcat(logbuff, "\n\n*** module info ***\n");
                 sCommandLine = TEXT("lmDvm ");
                 sCommandLine.append(module);
                 sCommandLine.append(TEXT("\n"));
                 WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), sCommandLine.size(), &nwrite, NULL);
-                if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize)> 0)
-                    fwrite(pbuff, 1, strlen(pbuff), logFile);
+				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
+				{
+					strcat(logbuff, pbuff);					
+				}
 
-                fclose(logFile);
+				// 写入log文件
+				if (mode == TEXT("client"))
+					SendFile(webserver, 12220, ct, crashpos, 'L', logbuff, strlen(logbuff));
+				FILE* logFile;
+				_tfopen_s(&logFile, logPath.c_str(), TEXT("w"));
+				if (logFile == NULL)
+				{
+					glogger.error(TEXT("can not create log file"));
+					break;
+				}
+				fwrite(logbuff, 1, strlen(logbuff), logFile);
+                fclose(logFile);				
                 break;
             }
 
@@ -913,7 +947,67 @@ uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff)
         return ret;
     }
 
+	closesocket(sock);
+	WSACleanup();
     return 0;
+}
+
+uint32_t SendFile(tstring serverip, uint16_t port, 
+	time_t time, const tstring & crashpos, byte type, char * data, int datalen)
+{
+	// Initialize Winsock
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != NO_ERROR)
+	{
+		glogger.error(TEXT("WSAStartup failed with error: %d"), WSAGetLastError());
+		return 0;
+	}
+
+	// socket
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+	{
+		glogger.error(TEXT("socket failed with error: %d"), WSAGetLastError());
+		WSACleanup();
+		return 0;
+	}
+
+	//构建本地地址信息  
+	struct sockaddr_in saServer;
+	saServer.sin_family = AF_INET;
+	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_addr.S_un.S_addr = inet_ttol(serverip.c_str());
+
+	// 连接服务器
+	int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
+	if (ret == SOCKET_ERROR)
+	{
+		closesocket(sock);
+		WSACleanup();
+		return 0;
+	}
+
+	// 发送请求
+	char* sendBuff = new char[sizeof(FILEPACK) + crashpos.size() + datalen];
+	PFILEPACK filepacket = (PFILEPACK)sendBuff;
+	filepacket->type = type;
+	filepacket->time = time;
+	filepacket->dirLen = crashpos.size();
+	memcpy(filepacket->data, gcommon::TStringToString(crashpos).c_str(), crashpos.size());
+	memcpy(filepacket->data + crashpos.size(), data, datalen);
+
+	ret = send(sock, sendBuff, sizeof(FILEPACK) + crashpos.size() + datalen, 0);
+	delete sendBuff;
+	closesocket(sock);
+	WSACleanup();
+
+	if (ret != sizeof(FILEPACK) + crashpos.size() + datalen)
+	{
+		glogger.error(TEXT("send file error: %s"), crashpos.c_str());
+		return 0;
+	}
+	return ret;
 }
 
 bool IsWow64()

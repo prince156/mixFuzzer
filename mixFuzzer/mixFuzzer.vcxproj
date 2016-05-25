@@ -172,6 +172,7 @@
     <ClCompile Include="..\..\common\common.cpp" />
     <ClCompile Include="..\..\common\glogger2.cpp" />
     <ClCompile Include="..\..\common\gthread.cpp" />
+    <ClCompile Include="fileRecvThread.cpp" />
     <ClCompile Include="htmlGenThread.cpp" />
     <ClCompile Include="httpServThread.cpp" />
     <ClCompile Include="mixFuzzer.cpp">
@@ -182,6 +183,7 @@
     <ClInclude Include="..\..\common\common.h" />
     <ClInclude Include="..\..\common\glogger2.h" />
     <ClInclude Include="..\..\common\gthread.h" />
+    <ClInclude Include="fileRecvThread.h" />
     <ClInclude Include="fuzzstr.h" />
     <ClInclude Include="htmlGenThread.h" />
     <ClInclude Include="httpServThread.h" />
