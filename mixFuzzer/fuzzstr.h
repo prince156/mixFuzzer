@@ -33,5 +33,5 @@ vector<string> g_browserObj = {
 
 vector<string> g_test = {
 	"test"
-}
+};
 

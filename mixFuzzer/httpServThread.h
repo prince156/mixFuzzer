@@ -15,6 +15,7 @@ typedef struct _httpservpara:_thread_para
 	char* htmlBuff = NULL;
 	uint16_t port = 12228;
     tstring outPath = TEXT(".\\crash\\");
+	tstring mode;
 }HTTPSERV_THREAD_PARA,*PHTTPSERV_THREAD_PARA;
 
 typedef struct _resource
