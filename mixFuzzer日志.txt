@@ -1,0 +1,98 @@
+? 程序中自动关闭edge的内存保护
+? 程序中自动打开页堆
+? 增加对svg、css的fuzz
+? [at] [ae] 没有包含全局属性
+? 关于浏览器启动等待时间的自动调整功能
+? 样本和日志回传至服务端
+
+fuzz标识说明：
+[dt]: 文档标志： "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">"
+[cc]: 兼容性："<meta http-equiv=\"x-ua-compatible\" content=\"IE=5\">"
+[cd]: 从commands.txt中读取一行
+[u?]: 0~9, fuzz语句文件，支持0~9共10个文件:
+[n?]: 0~9, 数字0~9
+[e?]: 0~9, 随机创建0~9个html标签,id_0~id_8
+[nr]: 随机数0~0x00ffffff
+[sf]: window.location.href = document.URL;
+*[fn]: e.g. id_[n9].[fn];
+[ef]: 从event-functions.txt中读取一行
+[ev]: 从events.txt中读取一行
+[ae]: e.g. attribute="value" 
+[at]: random attribute 
+[vl]: 中values-str.txt中读取一行，id_[n9].length = [vl]; 
+[el]: 从tags.txt中读取一行，document.createElement('[el]');
+[ln]: 随机js行
+[ff]: 随机function
+
+[2016-05-24 v0.9]
+* 增加[dt] [cc] [cd] [ff] [ln]等fuzz标签
+* 新增fuzzstr.h，集中存放fuzz使用的字符串集合
+* 改进模板生成过程
+* client模式不再需要模板文件
+* 字典文件新增继承特性
+* 字典attributes_dom中增加type和ret信息，attributes_html中type始终为$str
+* 将属性和方法合并至同一字典中
+
+[2016-04-20 v0.8]
+* 增加配置项：WEB_SERVER_PORT（HTTP服务端口，默认值：12228）
+* 增加配置项：WAIT_TIME（等待浏览器启动时间，默认值：2000）
+* 增加配置项：MAX_POC_COUNT（同一个目录中最大poc数量：默认值：10）
+* 增加服务端保存poc功能（按ip地址分类）
+* 增加显示所有attach的pid（包括新建的进程）
+* 其他细节上的优化，提升fuzz效率
+* 新增serverTest工程，用于测试服务端的效率
+
+[2016-04-12 v0.7]
+* 完善字典内容(attributes和values)
+* 修复：事件误用为事件函数
+* 增加favicon.ico
+* 增加配置项：DEAD_TIMEOUT（浏览器卡死的超时时间，默认值：5000）
+* 实现client模式：只负责调用浏览器，并捕获崩溃
+* 实现webserver模式：负责fuzz样本生成和提供http服务
+* 支持32位和64位两种版本
+
+[2016-01-29 v0.6]
+* 增加浏览器支持：opera
+* 如果fuzz目标为chrome或opera，请勿开启PageHeap
+* 优化崩溃信息log
+
+[2016-01-28 v0.5]
+* 支持多个模板同时fuzz，模板名称为template-*.html
+* 模板中增加refresh()，提高fuzz速度
+* 因浏览器刷新，导致经常出现recv error:10054，不再显示警告
+* 增加多浏览器支持：firefox、chrome、ie、edge
+* 对unknown类型的crash,不限制数量阈值
+* 如果没有加载对应模块的符号文件，则使用MODULE+0xabcd作为文件夹名
+* crash样本文件名中的‘!’不再替换为‘_’
+
+[2016-01-26 v0.4]
+* 如果同一个目录下html文件达到阈值，则不再写入新的poc
+* 增加webserver模式：只提供html生成和http服务
+* 修复偶尔出现“crash=%s”未格式化的问题
+* 增加对jpg、swf、svg等资源的支持
+* 优化[at]的随机算法，保证tag与attribute匹配、value和type匹配
+
+[2016-01-24 v0.3]
+* 增加[ev]、[at]...等新fuzz标签
+* 增加events等字典
+* 完善u0.txt~u9.txt
+* 增加对浏览器未自动转条或卡死的检测，并设置超时
+* 修复获取的poc不匹配的问题
+
+[2016-01-23 v0.2]
+* 优化信息显示
+* 优化html和log中的回车符为适应windows
+* 删除对edgedbg和kill的依赖
+
+[2016-01-22 v0.1]
+* 实现mixfuzzer的基本框架，能够利用cdb挂载microsoftEdgeCP进程、保存崩溃样本、记录崩溃现场
+* 实现htmlGenThread线程，能够根据模板生成html文件
+* 实现httpServThread线程，一个内置的http服务，能够向microsoftEdge发送html文件
+
+[2016-01-19] 
+静态样本fuzz测试。
+前期先针对microsoft edge，实现测试用例生成、自动执行、崩溃信息抓取。
+
+模块组成：
+http服务线程
+html样本生成线程
