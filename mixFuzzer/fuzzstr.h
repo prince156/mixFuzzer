@@ -31,3 +31,7 @@ vector<string> g_browserObj = {
 	"Location"
 };
 
+vector<string> g_test = {
+	"test"
+}
+
