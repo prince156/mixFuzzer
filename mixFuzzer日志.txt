@@ -28,6 +28,8 @@ fuzz标识说明：
 * webserver模式，增加收集poc和log文件的功能
 * 修复无法kill edge相关进程的bug
 * 服务端crash信息显示改为单行
+* dic中防止使用window的confirm、prompt、print函数（弹出对话框）
+* dic中防止使用mediaquery的‘print’
 
 [2016-05-24 v0.9]
 * 增加[dt] [cc] [cd] [ff] [ln]等fuzz标签

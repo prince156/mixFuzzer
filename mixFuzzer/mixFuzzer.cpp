@@ -294,11 +294,13 @@ int _tmain(int argc, TCHAR** argv)
 		if (fuzztarget == TEXT("edge"))
 		{
 			TerminateAllProcess(TEXT("MicrosoftEdgeCP.exe"));
-			TerminateAllProcess(TEXT("MicrosoftEdgeCP.exe"));
+			TerminateAllProcess(TEXT("MicrosoftEdgeCP.exe"));			
+			TerminateAllProcess(TEXT("MicrosoftEdge.exe"));
 			Sleep(1000);
 		}
 		if (!TerminateAllProcess(appName.c_str()))
 		{
+			TerminateAllProcess(TEXT("MicrosoftEdge.exe"));
 			glogger.error(TEXT("Cannot kill %s, restart fuzz."), fuzztarget.c_str());
 			continue;
 		}
@@ -469,18 +471,11 @@ int _tmain(int argc, TCHAR** argv)
                 }
 
                 // 判定为crash 
-                glogger.error(TEXT("!! find crash !!"));
-				pocbuff[0] = 0;
-                GetPrevHTML(webserver, serverPort, pocbuff);
+                glogger.error(TEXT("!! find crash !!"));				
                 if (debug_level > 0)
                 {
                     printf("+1 [main] %s\n", pbuff);
-                }
-                if (pocbuff == NULL || strlen(pocbuff) == 0)
-                {
-                    glogger.error(TEXT("can not get POC"));
-                    break;
-                }
+                }				
 
                 // 生成文件名
                 TCHAR filename[11];
@@ -502,6 +497,13 @@ int _tmain(int argc, TCHAR** argv)
                     break;
                 }
                 glogger.info(TEXT("create html and log ..."));
+				pocbuff[0] = 0;
+				GetPrevHTML(webserver, serverPort, pocbuff);
+				if (pocbuff == NULL || strlen(pocbuff) == 0)
+				{
+					glogger.error(TEXT("can not get POC"));
+					break;
+				}
 
                 // 补全文件名
                 htmlPath.append(filename);
