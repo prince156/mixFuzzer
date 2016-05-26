@@ -992,8 +992,8 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 	char* sendBuff = new char[sizeof(FILEPACK) + crashpos.size() + datalen];
 	PFILEPACK filepacket = (PFILEPACK)sendBuff;
 	filepacket->type = type;
-	filepacket->time = time;
-	filepacket->dirLen = crashpos.size();
+	filepacket->time = (uint32_t)time;
+	filepacket->dirLen = (uint32_t)crashpos.size();
 	memcpy(filepacket->data, gcommon::TStringToString(crashpos).c_str(), crashpos.size());
 	memcpy(filepacket->data + crashpos.size(), data, datalen);
 

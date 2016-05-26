@@ -8,8 +8,8 @@ using namespace std;
 #pragma pack(push,1)
 typedef struct _file_pack
 {
-	time_t time;
-	size_t dirLen;
+	uint32_t time;
+	uint32_t dirLen;
 	byte type;
 	char data[0];
 }FILEPACK, *PFILEPACK;
