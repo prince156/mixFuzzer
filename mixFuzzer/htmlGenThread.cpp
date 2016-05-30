@@ -780,6 +780,9 @@ string HtmlGenThread::GenJsLine()
 			m_ids[rd2] + ".replaceChild("+ m_ids[rd2] +".firstChild,ee);" +
 			"}catch(e){}";
 		break;
+	case 13:
+		rd = random(0, m_tags.size());
+		return GetRandomObject(m_tag_dom[m_tags[rd]]) + ".__proto__ = " + GetRandomObject(m_tag_dom[m_tags[rd]]);
     default:
         break;
     }
@@ -928,9 +931,9 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values)
 	return valueortype;
 }
 
-string HtmlGenThread::GetRandomObject(const string & className)
+string HtmlGenThread::GetRandomObject(const string & objType)
 {
-	int rd = random(0,2);
+	int rd = random(0,20);
 	int r1, r2;
 	switch (rd)
 	{
@@ -940,6 +943,57 @@ string HtmlGenThread::GetRandomObject(const string & className)
 	case 1:
 		r1 = random(0, m_tags.size());
 		return "document.createElement(\"" + m_tags[r1] + "\")";
+	case 2:
+		r1 = random(0, m_type_values.size());
+		return "document.createComment(" + m_type_values["str"][r1] + ")";
+	case 3:
+		r1 = random(0, m_ids.size());
+		return m_ids[r1]+".firstChild";
+	case 4:
+		r1 = random(0, m_ids.size());
+		return m_ids[r1] + ".cloneNode(true)";
+	case 5:
+		r1 = random(0, m_ids.size());
+		return m_ids[r1] + ".attributes";
+	case 6:
+		r1 = random(0, m_ids.size());
+		return m_ids[r1] + ".parentNode";
+	case 7:
+		r1 = random(0, m_type_values.size());
+		return "document.createTextNode(" + m_type_values["str"][r1] + ")";
+	case 8:
+		r1 = random(0, m_type_values.size());
+		return "document.createDocumentFragment()";
+	case 9:
+		r1 = random(0, m_type_values.size());
+		return "document.documentElement";
+	case 10:
+		r1 = random(0, m_type_values.size());
+		return "document.createCDATASection(" + m_type_values["str"][r1] + ")";
+	case 11:
+		r1 = random(0, m_type_values.size());
+		return "document.createProcessingInstruction(" + m_type_values["str"][r1] + ")";
+	case 12:
+		r1 = random(0, m_type_values.size());
+		return "document.createAttribute(" + m_type_values["str"][r1] + ")";
+	case 13:
+		r1 = random(0, m_type_values.size());
+		return "document.createEntityReference(" + m_type_values["str"][r1] + ")";
+	case 14:
+		r1 = random(0, m_tags.size());
+		return "document.getElementsByTagName(\"" + m_tags[r1] + "\")";
+	case 15:
+		r1 = random(0, m_tags.size());
+		return "document.getElementsByTagName(\"" + m_tags[r1] + "\")[0]";
+	case 16:
+		r1 = random(0, m_ids.size());
+		return "document.getElementById(\""+m_ids[r1]+"\")";
+	case 17:
+		r1 = random(0, m_tags.size());
+		return "document.createElementNS(\"" + m_tags[r1] + "\")";
+	case 18:
+		r1 = random(0, m_type_values.size());
+		return "document.createAttributeNS(" + m_type_values["str"][r1] + ")";
 	default:
 		r1 = random(0, m_ids.size());
 		return m_ids[r1];
@@ -957,7 +1011,7 @@ string HtmlGenThread::GetRandomFuncArgs(const PROPERTY & prop)
 	{
 		if (arg.front() == '$')
 		{
-			args += GetRandomObject(arg.substr(1, string::npos));
+			args += GetRandomObject(arg);
 			args += ",";
 		}
 		else if (arg.front() == '%')

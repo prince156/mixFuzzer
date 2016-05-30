@@ -100,6 +100,7 @@ DWORD WINAPI SocketThread(PVOID para)
 				glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
 				glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd hh:mm:ss] "));
 				glogger.screen(TEXT("find crash at: ") + crashpos + TEXT("\n"));
+				glogger.logfile(TEXT("find crash at: ") + crashpos + TEXT("\n"));
 				glogger.setDefaultColor();
 			}            
         }
