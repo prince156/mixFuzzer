@@ -679,7 +679,7 @@ string HtmlGenThread::GenJsLine()
 	string prop_right;
 	string tmp;
     int rd,rd2,rd3;
-    int sw = random(0, 13);
+    int sw = random(0, 14);
     switch (sw)
     {
     case 0: // window对象属性赋值
@@ -782,7 +782,10 @@ string HtmlGenThread::GenJsLine()
 		break;
 	case 13:
 		rd = random(0, m_tags.size());
-		return GetRandomObject(m_tag_dom[m_tags[rd]]) + ".__proto__ = " + GetRandomObject(m_tag_dom[m_tags[rd]]);
+		return "try{var ee = " + GetRandomObject(m_tag_dom[m_tags[rd]]) + ";" +
+			"ee.__proto__ = " + GetRandomObject(m_tag_dom[m_tags[rd]]) + ";" +
+			"var tt = ee." + GenJsLine_Property(m_dom_props["HTMLElement"], rd) + ";" +
+			"}catch(e){}";
     default:
         break;
     }

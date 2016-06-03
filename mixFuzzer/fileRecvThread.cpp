@@ -106,7 +106,11 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 			if (ff == NULL)
 			{
 				glogger.error(TEXT("can not create file: %s"), filename.c_str());
-				break;
+				dirpath = pPara->para->outPath + inet_ltot(pPara->remoteIP) +
+					TEXT("\\unknown\\");
+				_tfopen_s(&ff, (dirpath + filename).c_str(), TEXT("a"));
+				if(ff == NULL)
+					break;
 			}
 		}
 

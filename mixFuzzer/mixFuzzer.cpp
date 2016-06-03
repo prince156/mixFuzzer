@@ -485,10 +485,9 @@ int _tmain(int argc, TCHAR** argv)
                 // 获取崩溃位置作为目录名
                 tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
                 tstring module = crashpos.substr(0, crashpos.find_first_of('_'));
-                htmlPath.assign(outPath);
-                htmlPath.append(crashpos);
-                htmlPath.append(TEXT("\\"));
-                CreateDirectory(htmlPath.c_str(), NULL);
+                htmlPath = outPath + crashpos + TEXT("\\");
+				CreateDirectory(htmlPath.c_str(), NULL);
+
                 glogger.info(TEXT("crash = ") + crashpos);
                 if (crashpos != TEXT("unknown") &&
                     GetFilecountInDir(htmlPath, TEXT("log")) >= maxPocCount)
@@ -508,8 +507,7 @@ int _tmain(int argc, TCHAR** argv)
                 // 补全文件名
                 htmlPath.append(filename);
                 htmlPath.append(TEXT(".html"));
-                logPath.assign(htmlPath);
-                logPath.append(TEXT(".log"));
+                logPath = htmlPath + TEXT(".log");
 
                 // 写入html文件
 				if (mode == TEXT("client"))
@@ -519,10 +517,13 @@ int _tmain(int argc, TCHAR** argv)
                 if (htmlFile == NULL)
                 {
                     glogger.error(TEXT("can not create html file"));
-                    break;
+					htmlPath = outPath + TEXT("unknown\\");
+					_tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
+					if(htmlFile == NULL)
+						break;
                 }
-                fwrite(pocbuff, 1, strlen(pocbuff), htmlFile);
-                fclose(htmlFile);
+				fwrite(pocbuff, 1, strlen(pocbuff), htmlFile);
+				fclose(htmlFile);
 				
 				// log文件                
 				logbuff[0] = 0;
@@ -566,7 +567,7 @@ int _tmain(int argc, TCHAR** argv)
 					break;
 				}
 				fwrite(logbuff, 1, strlen(logbuff), logFile);
-                fclose(logFile);				
+				fclose(logFile);
                 break;
             }
 
