@@ -27,7 +27,7 @@ void HtmlGenThread::ThreadMain()
 	m_ids = { "id_0","id_1", "id_2", "id_3", "id_4", "id_5", "id_6", "id_7", "id_8" };
 	m_funcNames = { "fuzz0", "fuzz1", "fuzz2" };
     m_htmlTempl[0] = 0;
-    int tr = random(0, m_para->htmlTempls.size());
+    int tr = random(0, (uint32_t)m_para->htmlTempls.size());
     GenerateTempl(m_para->htmlTempls[tr], m_htmlTempl);
     GenerateTempl(m_htmlTempl, m_htmlTempl);
     if (m_htmlTempl[0] == 0)
@@ -401,7 +401,7 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
     }
     fclose(file);
     delete[] ufiledata;
-    return list.size();
+    return (int)list.size();
 }
 
 int HtmlGenThread::ReadDic2(const char * dicfile, map<string, string>& tags)
@@ -427,10 +427,10 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
     if (src == NULL || dst == NULL)
         return;
 
-    int rd = 0;
-    int dstlen = 0;
-    int srclen = strlen(src);
-    int dstsize = m_para->buffSize;
+    uint32_t rd = 0;
+	uint32_t dstlen = 0;
+	uint32_t srclen = (uint32_t)strlen(src);
+	uint32_t dstsize = m_para->buffSize;
     if (srclen > dstsize)
         return;
     char* tmp = new char[srclen + 1];
@@ -457,7 +457,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             {
                 rd = random(0, 0x00ffffff);
                 memcpy_s(dst + dstlen, dstsize - dstlen, to_string(rd).c_str(), to_string(rd).size());
-                dstlen += to_string(rd).size();
+                dstlen += (uint32_t)to_string(rd).size();
             }
             else if (memcmp(tmp + i, "[el]", 4) == 0)
             {
@@ -481,17 +481,17 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                     {
                         if (count++ >= 10)
                             break;
-                        rd = random(0, m_tags.size());
+                        rd = random(0, (uint32_t)m_tags.size());
                         tag = m_tags[rd];
                     } while (m_tag_props[tag].empty());
 
                     if (!m_tag_props[tag].empty())
                     {
-                        rd = random(0, m_tag_props[tag].size());
+                        rd = random(0, (uint32_t)m_tag_props[tag].size());
                         memcpy_s(dst + dstlen, dstsize - dstlen,
 							m_tag_props[tag][rd].name.c_str(),
 							m_tag_props[tag][rd].name.size());
-                        dstlen += m_tag_props[tag][rd].name.size();
+                        dstlen += (uint32_t)m_tag_props[tag][rd].name.size();
                     }
                 }
             }
@@ -511,7 +511,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                         if (!attexp.empty())
                         {
                             memcpy_s(dst + dstlen, dstsize - dstlen, attexp.c_str(), attexp.size());
-                            dstlen += attexp.size();
+                            dstlen += (uint32_t)attexp.size();
                         }
                     }
                 }
@@ -524,7 +524,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                 //memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
 				char *safeurl = "window.location.href = document.URL;";
 				memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
-                dstlen += strlen(safeurl);
+                dstlen += (uint32_t)strlen(safeurl);
             }
             else if (memcmp(tmp + i, "[cc]", 4) == 0) 
             {
@@ -550,13 +550,13 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             {
                 if (tmp[i + 2] >= '0' && tmp[i + 2] <= '9')
                 {
-                    for (size_t j = '0'; j < tmp[i + 2]; j++)
+                    for (byte j = '0'; j < tmp[i + 2]; j++)
                     {
                         string line = GenHtmlLine(j - '0');
 						if (!line.empty())
 						{
 							memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
-							dstlen += line.length();
+							dstlen += (uint32_t)line.length();
 						}
                     }
                 }
@@ -569,7 +569,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 				{
 					m_funcNames.push_back(funcName);
 					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
-					dstlen += line.length();
+					dstlen += (uint32_t)line.length();
 				}
 			}
 			else if (memcmp(tmp + i, "[ln]", 4) == 0) // 自动生成一行
@@ -578,7 +578,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 				if (!line.empty())
 				{
 					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
-					dstlen += line.length();
+					dstlen += (uint32_t)line.length();
 				}
 			}
 			else
@@ -595,13 +595,13 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
     delete tmp;
 }
 
-void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, int dstsize, int & dstlen)
+void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, uint32_t dstsize, uint32_t & dstlen)
 {
     if (!strs.empty())
     {
-        int rd = random(0, strs.size());
+		uint32_t rd = random(0, (uint32_t)strs.size());
         memcpy_s(dst + dstlen, dstsize - dstlen, strs[rd].c_str(), strs[rd].size());
-        dstlen += strs[rd].size();
+        dstlen += (uint32_t)strs[rd].size();
     }
 }
 
@@ -609,12 +609,12 @@ string HtmlGenThread::GenTagAttrExp(const string &tag)
 {    
 	if (m_tag_props[tag].empty())
 		return string();
-	int rd = random(0, m_tag_props[tag].size());
+	uint32_t rd = random(0, (uint32_t)m_tag_props[tag].size());
 	PROPERTY attr = m_tag_props[tag][rd];
     if (attr.values.empty())
         return attr.name + "=\'\'";
 
-    int vr = random(0, attr.values.size());
+	uint32_t vr = random(0, (uint32_t)attr.values.size());
     string valueortype = attr.values[vr];
     if (valueortype.front() == '%')
     {
@@ -622,7 +622,7 @@ string HtmlGenThread::GenTagAttrExp(const string &tag)
         if (m_type_values[type].empty())
 			return attr.name + "=\'\'";
 
-        int tr = random(0, m_type_values[type].size());
+		uint32_t tr = random(0, (uint32_t)m_type_values[type].size());
         valueortype = m_type_values[type][tr];
     }
 
@@ -633,14 +633,14 @@ string HtmlGenThread::GenHtmlLine(int id)
 {
     if (m_tags.empty())
         return string();
-    int rd = random(0, m_tags.size());
+    uint32_t rd = random(0, (uint32_t)m_tags.size());
     string tag = m_tags[rd];
 
     string event_exp = "";
     if (!m_evtfuncs.empty())
     {
-        int fr = random(0, m_funcNames.size());
-        rd = random(0, m_evtfuncs.size());
+		uint32_t fr = random(0, (uint32_t)m_funcNames.size());
+        rd = random(0, (uint32_t)m_evtfuncs.size());
         event_exp = m_evtfuncs[rd] + "='" + m_funcNames[fr] + "();'";
     }
 
@@ -662,8 +662,8 @@ string HtmlGenThread::GenHtmlLine(int id)
 string HtmlGenThread::GenJsFunction(const string &name)
 {
     string funcstr = "function " + name + "()\n{\n";
-    int count = random(20, 30);
-    for (int i = 0; i < count; i++)
+	uint32_t count = random(20, 30);
+    for (uint32_t i = 0; i < count; i++)
     {
         funcstr += "    ";
         funcstr += GenJsLine();
@@ -678,8 +678,8 @@ string HtmlGenThread::GenJsLine()
 	string line = "try{";
 	string prop_right;
 	string tmp;
-    int rd,rd2,rd3;
-    int sw = random(0, 14);
+	uint32_t rd,rd2;
+	uint32_t sw = random(0, 14);
     switch (sw)
     {
     case 0: // window对象属性赋值
@@ -697,7 +697,7 @@ string HtmlGenThread::GenJsLine()
 			prop_right = GenJsLine_Property(m_dom_props["HTMLElement"], rd);
 			if (!prop_right.empty())
 			{
-				rd2 = random(0, m_type_values["id"].size());
+				rd2 = random(0, (uint32_t)m_type_values["id"].size());
 				return "try{" +
 					m_type_values["id"][rd2].substr(1, m_type_values["id"][rd2].size() - 2) + "." +
 					prop_right + "}catch(e){}";
@@ -715,7 +715,7 @@ string HtmlGenThread::GenJsLine()
 		rd = random(0, 5);
 		if (m_tags.size() > 0)
 		{
-			rd2 = random(0, m_tags.size());
+			rd2 = random(0, (uint32_t)m_tags.size());
 			prop_right = GenJsLine_Property(m_dom_props[m_tags[rd2]], rd);
 			if (!prop_right.empty())
 			{				
@@ -740,7 +740,7 @@ string HtmlGenThread::GenJsLine()
 			prop_right = GenJsLine_ExecCommand(m_dom_props["HTMLElement"], rd);
 			if (!prop_right.empty())
 			{
-				rd2 = random(0, m_type_values["id"].size());
+				rd2 = random(0, (uint32_t)m_type_values["id"].size());
 				return "try{" +
 					m_type_values["id"][rd2].substr(1, m_type_values["id"][rd2].size() - 2) + "." +
 					prop_right + "}catch(e){}";
@@ -757,7 +757,7 @@ string HtmlGenThread::GenJsLine()
 		rd = random(0, 3);
 		if (m_tags.size() > 0)
 		{			
-			rd2 = random(0, m_tags.size());
+			rd2 = random(0, (uint32_t)m_tags.size());
 			prop_right = GenJsLine_ExecCommand(m_dom_props[m_tags[rd2]], rd);
 			if (!prop_right.empty())
 			{				
@@ -768,20 +768,20 @@ string HtmlGenThread::GenJsLine()
 		}
 		break;
 	case 11:
-		rd = random(0, m_tags.size());
+		rd = random(0, (uint32_t)m_tags.size());
 		return "try{var ee = document.createElement(\'" + m_tags[rd] + "\');" +
 			"id_" + to_string(random(0, 10)) + ".appendChild(ee);" +
 			"}catch(e){}";
 		break;
 	case 12:
-		rd = random(0, m_tags.size());
-		rd2 = random(0, m_ids.size());
+		rd = random(0, (uint32_t)m_tags.size());
+		rd2 = random(0, (uint32_t)m_ids.size());
 		return "try{var ee = document.createElement(\'" + m_tags[rd] + "\');" +
 			m_ids[rd2] + ".replaceChild("+ m_ids[rd2] +".firstChild,ee);" +
 			"}catch(e){}";
 		break;
 	case 13:
-		rd = random(0, m_tags.size());
+		rd = random(0, (uint32_t)m_tags.size());
 		return "try{var ee = " + GetRandomObject(m_tag_dom[m_tags[rd]]) + ";" +
 			"ee.__proto__ = " + GetRandomObject(m_tag_dom[m_tags[rd]]) + ";" +
 			"var tt = ee." + GenJsLine_Property(m_dom_props["HTMLElement"], rd) + ";" +
@@ -799,7 +799,7 @@ string HtmlGenThread::GenJsLine_Property(const vector<PROPERTY>& props, int deep
 		return "";
 	}
 	 
-	int rd = random(0, props.size());
+	uint32_t rd = random(0, (uint32_t)props.size());
 	if (deep == 0)
 	{
 		if (props[rd].ret.empty())
@@ -854,10 +854,10 @@ string HtmlGenThread::GenJsLine_ExecCommand(const vector<PROPERTY>& props, int d
 		return "";
 	}
 
-	int rd = random(0, props.size());
+	uint32_t rd = random(0, (uint32_t)props.size());
 	if (deep == 0)
 	{
-		int cd = random(0, m_commands.size());
+		uint32_t cd = random(0, (uint32_t)m_commands.size());
 		if (props[rd].ret.empty())
 		{
 			return props[rd].name + ";";
@@ -911,7 +911,7 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values)
 	if(values.size() == 0)
 		return "\'\'";
 
-	int vr = random(0, values.size());
+	uint32_t vr = random(0, (uint32_t)values.size());
 	string valueortype = values[vr];
 	if (valueortype.empty())
 	{
@@ -923,7 +923,7 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values)
 		if (m_type_values[type].empty())
 			valueortype = "\'\'";
 
-		int tr = random(0, m_type_values[type].size());
+		uint32_t tr = random(0, (uint32_t)m_type_values[type].size());
 		return m_type_values[type][tr];
 	}
 	else if (valueortype.front() == '$')
@@ -936,69 +936,69 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values)
 
 string HtmlGenThread::GetRandomObject(const string & objType)
 {
-	int rd = random(0,20);
-	int r1, r2;
+	uint32_t rd = random(0,20);
+	uint32_t r1;
 	switch (rd)
 	{
 	case 0:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return m_ids[r1];
 	case 1:
-		r1 = random(0, m_tags.size());
+		r1 = random(0, (uint32_t)m_tags.size());
 		return "document.createElement(\"" + m_tags[r1] + "\")";
 	case 2:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createComment(" + m_type_values["str"][r1] + ")";
 	case 3:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return m_ids[r1]+".firstChild";
 	case 4:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return m_ids[r1] + ".cloneNode(true)";
 	case 5:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return m_ids[r1] + ".attributes";
 	case 6:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return m_ids[r1] + ".parentNode";
 	case 7:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createTextNode(" + m_type_values["str"][r1] + ")";
 	case 8:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createDocumentFragment()";
 	case 9:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.documentElement";
 	case 10:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createCDATASection(" + m_type_values["str"][r1] + ")";
 	case 11:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createProcessingInstruction(" + m_type_values["str"][r1] + ")";
 	case 12:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createAttribute(" + m_type_values["str"][r1] + ")";
 	case 13:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createEntityReference(" + m_type_values["str"][r1] + ")";
 	case 14:
-		r1 = random(0, m_tags.size());
+		r1 = random(0, (uint32_t)m_tags.size());
 		return "document.getElementsByTagName(\"" + m_tags[r1] + "\")";
 	case 15:
-		r1 = random(0, m_tags.size());
+		r1 = random(0, (uint32_t)m_tags.size());
 		return "document.getElementsByTagName(\"" + m_tags[r1] + "\")[0]";
 	case 16:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return "document.getElementById(\""+m_ids[r1]+"\")";
 	case 17:
-		r1 = random(0, m_tags.size());
+		r1 = random(0, (uint32_t)m_tags.size());
 		return "document.createElementNS(\"" + m_tags[r1] + "\")";
 	case 18:
-		r1 = random(0, m_type_values.size());
+		r1 = random(0, (uint32_t)m_type_values.size());
 		return "document.createAttributeNS(" + m_type_values["str"][r1] + ")";
 	default:
-		r1 = random(0, m_ids.size());
+		r1 = random(0, (uint32_t)m_ids.size());
 		return m_ids[r1];
 	}
 }
@@ -1022,7 +1022,7 @@ string HtmlGenThread::GetRandomFuncArgs(const PROPERTY & prop)
 			string type = arg.substr(1, string::npos);
 			if (!m_type_values[type].empty())
 			{
-				int tr = random(0, m_type_values[type].size());
+				int tr = random(0, (uint32_t)m_type_values[type].size());
 				args += m_type_values[type][tr];
 				args += ",";
 			}			

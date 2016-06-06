@@ -1,9 +1,6 @@
 ? 程序中自动关闭edge的内存保护
-? 程序中自动打开页堆
 ? 增加对svg、css的fuzz
-? [at] [ae] 没有包含全局属性
-? 关于浏览器启动等待时间的自动调整功能
-? 样本和日志回传至服务端
+? 写入管道时WriteFile偶尔会阻塞卡死
 
 fuzz标识说明：
 [dt]: 文档标志： "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">"
@@ -24,7 +21,8 @@ fuzz标识说明：
 [ln]: 随机js行
 [ff]: 随机function
 
-[2016-05-25]
+[2016-06-06 v1.0]
+* 增加对其他浏览器的统一支持
 * webserver模式，增加收集poc和log文件的功能
 * 修复无法kill edge相关进程的bug
 * 服务端crash信息显示改为单行
@@ -32,6 +30,7 @@ fuzz标识说明：
 * dic中防止使用mediaquery的‘print’
 * dic中避免使用cut、copy、paste等事件函数
 * 不要使用document.designMode
+* 不要使用command: "insertParagraph" , false, "paragraph"
 
 [2016-05-24 v0.9]
 * 增加[dt] [cc] [cd] [ff] [ln]等fuzz标签

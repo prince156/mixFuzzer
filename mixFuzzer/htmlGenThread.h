@@ -18,7 +18,7 @@ typedef struct _htmlgen_para:_thread_para
 	HANDLE semHtmlbuff_p;
 	HANDLE semHtmlbuff_c;
 	char* htmlBuff = NULL;
-	int buffSize = 0;
+	uint32_t buffSize = 0;
 	vector<PTMPL_NODE> htmlTemplNodes;
     vector<char*> htmlTempls;
 	string serverip = "127.0.0.1";
@@ -70,7 +70,7 @@ private:
 	void HandleInheritation();
 
     void GenerateTempl(const char* src, char* dst);
-    void GenerateFromVector(vector<string> &strs, char* dst, int dstsize, int& dstlen);
+    void GenerateFromVector(vector<string> &strs, char* dst, uint32_t dstsize, uint32_t& dstlen);
 	
     string GenTagAttrExp(const string &tag);
 

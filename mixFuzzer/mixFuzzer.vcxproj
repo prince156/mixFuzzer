@@ -86,12 +86,12 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>$(ProjectName)_x86_v0.9</TargetName>
+    <TargetName>$(ProjectName)_x86_v1.0</TargetName>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>$(ProjectName)_x64_v0.9</TargetName>
+    <TargetName>$(ProjectName)_x64_v1.0</TargetName>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
   </PropertyGroup>
@@ -190,6 +190,9 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\mixFuzzer日志.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Output\Debug\config.ini" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

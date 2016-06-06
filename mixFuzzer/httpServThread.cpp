@@ -149,7 +149,7 @@ DWORD WINAPI SocketThread(PVOID para)
         memcpy(m_sendBuff, sendHead, headLen);
         memcpy(m_sendBuff + headLen, sendData, dataLen);
         m_sendBuff[headLen + dataLen] = 0;
-        send(pPara->sock, m_sendBuff, headLen + dataLen, 0);
+        send(pPara->sock, m_sendBuff, (int)(headLen + dataLen), 0);
         goto _safe_exit;
     }
 
@@ -162,7 +162,7 @@ DWORD WINAPI SocketThread(PVOID para)
     memcpy(m_sendBuff + headLen, sendData, dataLen);
     m_sendBuff[headLen + dataLen] = 0;
     ReleaseSemaphore(pPara->para->semHtmlbuff_p, 1, NULL);// ÊÍ·Å»¥³âÁ¿       
-    send(pPara->sock, m_sendBuff, headLen + dataLen, 0);        
+    send(pPara->sock, m_sendBuff, (int)(headLen + dataLen), 0);
 
     // ±£´æhtml
     memcpy(pPara->prevHtml, m_sendBuff + headLen, dataLen);
