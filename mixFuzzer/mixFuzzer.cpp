@@ -73,6 +73,7 @@ int _tmain(int argc, TCHAR** argv)
     int debug_level = 0;
 	uint32_t deadTimeout = 5000; // 浏览器卡死超时
 	uint32_t waitTime = 2000;    // 浏览器启动等待时间
+	uint32_t minWaitTime = 1000;
     int serverPort = 12228; // http服务端口
 	uint32_t maxPocCount = 10;   // 同一个目录中最大poc数量（以log文件计数）
     tstring log_file = TEXT("mixfuzz.log");
@@ -132,7 +133,7 @@ int _tmain(int argc, TCHAR** argv)
 	pageheap = _ttoi(GetConfigPara(currentDir + configFile, TEXT("PAGE_HEAP"), TEXT("1")).c_str());
     debug_level = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEBUG_LEVEL"), TEXT("0")).c_str());
     deadTimeout = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEAD_TIMEOUT"), TEXT("5000")).c_str());
-    waitTime = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("2000")).c_str());
+	waitTime = minWaitTime = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("1000")).c_str());
     serverPort = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228")).c_str());
     maxPocCount = _ttoi(GetConfigPara(currentDir + configFile, TEXT("MAX_POC_COUNT"), TEXT("10")).c_str());
     fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
@@ -301,7 +302,7 @@ int _tmain(int argc, TCHAR** argv)
             exit(_getch());
         }
         Sleep(waitTime); // 尽量等待一段时间
-		if (waitTime > 1000)
+		if (waitTime > minWaitTime)
 			waitTime -= 100;
 
         // 获取PID
@@ -309,7 +310,8 @@ int _tmain(int argc, TCHAR** argv)
         vector<DWORD> procIDs_new;
         if (procIDs.empty())
         {
-            glogger.error(TEXT("Cannot start the browser, restart fuzz."));			
+            glogger.error(TEXT("Cannot start the browser, restart fuzz."));		
+			waitTime += 500;
             continue;
         }
 
