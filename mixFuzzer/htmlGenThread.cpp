@@ -563,7 +563,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             }
 			else if (memcmp(tmp + i, "[ff]", 4) == 0) // 自动生成一个function
 			{
-				string funcName = "AutoFunc_" + to_string(m_funcNames.size());
+				string funcName = "fuzz" + to_string(m_funcNames.size());
 				string line = GenJsFunction(funcName);
 				if (!line.empty())
 				{
