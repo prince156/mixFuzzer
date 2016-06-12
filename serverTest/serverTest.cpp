@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include <conio.h>
 #include <Ws2tcpip.h>
 #include "common.h"
 
@@ -109,6 +110,6 @@ int main(int argc, char** argv)
     }
     printf("time used %d.%d sec for %d connections\n", dsec, dmsec, count);
 
-    return 0;
+    exit(_getch());
 }
 

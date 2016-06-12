@@ -77,8 +77,8 @@ int _tmain(int argc, TCHAR** argv)
     int serverPort = 12228; // http服务端口
 	uint32_t maxPocCount = 10;   // 同一个目录中最大poc数量（以log文件计数）
     tstring log_file = TEXT("mixfuzz.log");
-    tstring mode = TEXT("autofuzz");
-    tstring webserver = TEXT("127.0.0.1");
+    tstring mode = TEXT("local");
+    tstring serverIP = TEXT("127.0.0.1");
     tstring fuzztarget = TEXT("");	
 	int pageheap = 1;
     bool isWow64 = IsWow64();
@@ -141,7 +141,7 @@ int _tmain(int argc, TCHAR** argv)
     symPath = GetConfigPara(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
     outPath = GetConfigPara(currentDir + configFile, TEXT("OUT_PATH"), outPath);
     mode = GetConfigPara(currentDir + configFile, TEXT("MODE"), mode);
-    webserver = GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_IP"), webserver);
+    serverIP = GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_IP"), serverIP);
 	glogger.setDebugLevel(debug_level);
     glogger.info(TEXT("symbol path: ") + symPath);
     glogger.info(TEXT(" ouput path: ") + outPath);
@@ -181,7 +181,7 @@ int _tmain(int argc, TCHAR** argv)
     htmlGenPara.htmlTempls = htmlTempls;
     htmlGenPara.semHtmlbuff_c = semaphorec;
     htmlGenPara.semHtmlbuff_p = semaphorep;
-    htmlGenPara.serverip = WStringToString(webserver);
+    htmlGenPara.serverip = WStringToString(serverIP);
     htmlGenPara.port = serverPort;
     htmlGenPara.debugLevel = debug_level;
 	FILERECV_THREAD_PARA fileRecvPara;
@@ -195,30 +195,31 @@ int _tmain(int argc, TCHAR** argv)
         // 启动http服务线程            
         if (!httpServThread.Run())
         {
-            glogger.error(TEXT("failed to create [HttpServ] thread"));
+            glogger.error(TEXT("failed to create [Serv] thread"));
             exit(_getch());
         }
 
         // 启动html生成线程             
         if (!htmlGenThread.Run())
         {
-            glogger.error(TEXT("failed to create [HtmlGen] thread"));
+            glogger.error(TEXT("failed to create [Fuzz] thread"));
             exit(_getch());
         }
 		
     }   
 
-    // 进入webserver模式
-    if (mode == TEXT("webserver"))
+    // 进入server模式
+    if (mode == TEXT("server"))
     {
 		// 启动file接收线程
 		if (!fileRecvThread.Run())
 		{
-			glogger.error(TEXT("failed to create [HtmlGen] thread"));
+			glogger.error(TEXT("failed to create [Recv] thread"));
 			exit(_getch());
 		}
 
-        glogger.info(TEXT("webserver mode, listening at port: %d"), serverPort);
+        glogger.info(TEXT("webserver mode"));
+		glogger.info(TEXT("try to visit http://%s:%d"), serverIP.c_str(), serverPort);
         while (true)
         {
             Sleep(100);
@@ -303,7 +304,7 @@ int _tmain(int argc, TCHAR** argv)
         si_edge.dwFlags = STARTF_USESHOWWINDOW;
         si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
         TCHAR cmdline[1024];
-        _stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), webserver.c_str(), serverPort);
+        _stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
         BOOL bRet = CreateProcess(NULL, cmdline,
             NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
         if (!bRet)
@@ -489,7 +490,7 @@ int _tmain(int argc, TCHAR** argv)
                 }
                 glogger.info(TEXT("create html and log ..."));
 				pocbuff[0] = 0;
-				GetPrevHTML(webserver, serverPort, pocbuff);
+				GetPrevHTML(serverIP, serverPort, pocbuff);
 				if (pocbuff == NULL || strlen(pocbuff) == 0)
 				{
 					glogger.error(TEXT("can not get POC"));
@@ -502,7 +503,7 @@ int _tmain(int argc, TCHAR** argv)
 
                 // 写入html文件
 				if (mode == TEXT("client"))
-					SendFile(webserver, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));
+					SendFile(serverIP, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));
                 FILE* htmlFile;
                 _tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
                 if (htmlFile == NULL)
@@ -549,7 +550,7 @@ int _tmain(int argc, TCHAR** argv)
 
 				// 写入log文件
 				if (mode == TEXT("client"))
-					SendFile(webserver, 12220, ct, crashpos, 'L', logbuff, (int)strlen(logbuff));
+					SendFile(serverIP, 12220, ct, crashpos, 'L', logbuff, (int)strlen(logbuff));
 				FILE* logFile;
 				_tfopen_s(&logFile, logPath.c_str(), TEXT("w"));
 				if (logFile == NULL)
@@ -575,8 +576,9 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 {
     DWORD nwrite, nread;
     char rbuff[1024 + 1];
+	GetDebugInfo(houtPipeR, rbuff, 1024, 500);
     WriteFile(hinPipeW, "u eip L1\n", 9, &nwrite, NULL);
-    nread = GetDebugInfo(houtPipeR, rbuff, 1024);
+    nread = GetDebugInfo(houtPipeR, rbuff, 1024, 500);
     if (nread == 0)
         return tstring(TEXT("unknown"));
 
@@ -598,15 +600,31 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 
     for (i = start; i < strlen(rbuff); i++)
     {
-        if (rbuff[i] == ':')
-        {
-            rbuff[i] = '_';
-        }
+		if (rbuff[i] == '\n')
+		{
+			rbuff[i - 1] = 0;
+			break;
+		}
 
-        if (rbuff[i] == '\n')
-        {
-            rbuff[i - 1] = 0;
-        }
+		// 非法字符过滤
+		if (rbuff[i] == ':')
+			rbuff[i] = '_'; 
+		else if (rbuff[i] == '*')
+			rbuff[i] = '.';
+		else if (rbuff[i] == '/')
+			rbuff[i] = '-'; 
+		else if (rbuff[i] == '\\')
+			rbuff[i] = '-';
+		else if (rbuff[i] == '?')
+			rbuff[i] = '.'; 
+		else if (rbuff[i] == '"')
+			rbuff[i] = '\'';
+		else if (rbuff[i] == '<')
+			rbuff[i] = '['; 
+		else if (rbuff[i] == '>')
+			rbuff[i] = ']';
+		else if (rbuff[i] == '|')
+			rbuff[i] = '-';
     }
 
     return StringToWString(string(rbuff + start));
@@ -667,27 +685,20 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
     {
         Sleep(100);
         if (!PeekNamedPipe(hPipe, buff, size, &nread, 0, 0))
-        {
             continue;
-        }
 
         if (nread == size)
-        {
             break;
-        }
     }
 
     if (nread == 0)
-    {
         return 0;
-    }
 
     nread = 0;
     ReadFile(hPipe, buff, size, &nread, NULL);
     if (nread>0)
-    {
         buff[nread] = 0;
-    }
+
     return nread;
 }
 

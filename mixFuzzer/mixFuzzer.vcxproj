@@ -86,12 +86,12 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>$(ProjectName)_x86_v1.0</TargetName>
+    <TargetName>$(ProjectName)_x86_v1.1</TargetName>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>$(ProjectName)_x64_v1.0</TargetName>
+    <TargetName>$(ProjectName)_x64_v1.1</TargetName>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
   </PropertyGroup>

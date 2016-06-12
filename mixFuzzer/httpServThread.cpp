@@ -10,6 +10,7 @@ extern GLogger2 glogger;
 HttpServThread::HttpServThread(PHTTPSERV_THREAD_PARA para)
 	:GThread(para)
 {
+	m_glogger.setHeader(TEXT("Serv"));
 	m_para = para;    
     m_prevHtmls.clear();
 	InitSocket();
@@ -91,18 +92,7 @@ DWORD WINAPI SocketThread(PVOID para)
         if (pPara->prevHtml != NULL && strlen(pPara->prevHtml) > 0)
         {
             sendData = pPara->prevHtml;
-            dataLen = strlen(sendData);
-            
-			if (pPara->para->mode == TEXT("webserver"))
-			{
-				// 获取崩溃位置作为目录名
-				tstring crashpos = inet_ltot(pPara->remoteIP);
-				glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
-				glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd hh:mm:ss] "));
-				glogger.screen(TEXT("find crash at: ") + crashpos + TEXT("\n"));
-				glogger.logfile(TEXT("find crash at: ") + crashpos + TEXT("\n"));
-				glogger.setDefaultColor();
-			}            
+            dataLen = strlen(sendData);       
         }
         else
         {

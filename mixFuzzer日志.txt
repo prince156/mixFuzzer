@@ -21,20 +21,26 @@ fuzz标识说明：
 [ln]: 随机js行
 [ff]: 随机function
 
-[2016-06-07]
+[2016-06-13 v1.1]
 * 浏览器启动等待时间调整
 * [ff]标签生成的函数名改为fuzz?()
+* 修复无法结束microsoftedge.exe进程的bug
+* 修改server模式下的提示信息
+* 为各个线程的glogger设置header
+* 严格过滤目录名中的非法字符
+* 完善GenJsLine
+* 完善GetRandomObject
 
 [2016-06-06 v1.0]
 * 增加对其他浏览器的统一支持
 * webserver模式，增加收集poc和log文件的功能
 * 修复无法kill edge相关进程的bug
 * 服务端crash信息显示改为单行
-* dic中防止使用window的confirm、prompt、print、alert、close函数（弹出对话框）
-* dic中防止使用mediaquery的‘print’
+* dic中避免使用window的confirm、prompt、print、alert、close函数（弹出对话框）
+* dic中避免使用mediaquery的‘print’
 * dic中避免使用cut、copy、paste等事件函数
-* 不要使用document.designMode
-* 不要使用command: "insertParagraph" , false, "paragraph"
+* 避免使用document.designMode
+* 避免使用command: "insertParagraph" , false, "paragraph"
 
 [2016-05-24 v0.9]
 * 增加[dt] [cc] [cd] [ff] [ln]等fuzz标签
