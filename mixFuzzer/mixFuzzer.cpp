@@ -261,28 +261,39 @@ int _tmain(int argc, TCHAR** argv)
 
         // kill 所有相关线程
         glogger.info(TEXT("Kill all %s-related processes"), fuzztarget.c_str());
+		glogger.debug1(TEXT("kill WerFault.exe ..."));
         if (!TerminateAllProcess(TEXT("WerFault.exe")))
         {
             glogger.error(TEXT("Cannot kill WerFault.exe, restart fuzz."));
             continue;
         }
+		glogger.debug1(TEXT("kill %s ..."), cdb_exe.c_str());
         if (!TerminateAllProcess(cdb_exe.c_str()))
         {
             glogger.error(TEXT("Cannot kill cdb, restart fuzz."));
             continue;
         }
+		glogger.debug1(TEXT("kill explorer.exe ..."));
         if (!TerminateAllProcess(TEXT("explorer.exe")))
         {
             //glogger.warning(TEXT("Cannot kill explorer, restart fuzz."));
             //continue;
         }
+		glogger.debug1(TEXT("kill %s ..."), webProcName.c_str());
 		if (!TerminateAllProcess(webProcName.c_str()))
 		{
+			glogger.debug1(TEXT("kill %s ..."), parentProcName.c_str());
 			if (!TerminateAllProcess(parentProcName.c_str()))
 			{
 				glogger.error(TEXT("Cannot kill %s, restart fuzz."), fuzztarget.c_str());
 				continue;
 			}
+		}
+		glogger.debug1(TEXT("kill %s ..."), parentProcName.c_str());
+		if (!TerminateAllProcess(parentProcName.c_str()))
+		{
+			glogger.error(TEXT("Cannot kill %s, restart fuzz."), fuzztarget.c_str());
+			continue;
 		}
 
         // 启动浏览器

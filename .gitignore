@@ -218,3 +218,4 @@ ModelManifest.xml
 /mixFuzzer日志.txt
 /mixFuzzer.VC.db
 /Output/mixfuzz_Debug.7z
+*.7z
