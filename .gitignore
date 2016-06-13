@@ -219,3 +219,4 @@ ModelManifest.xml
 /mixFuzzer.VC.db
 /Output/mixfuzz_Debug.7z
 *.7z
+*.html

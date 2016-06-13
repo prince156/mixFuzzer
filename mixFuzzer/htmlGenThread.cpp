@@ -14,7 +14,6 @@ HtmlGenThread::HtmlGenThread(PHTMLGEN_THREAD_PARA para)
     m_para = para;
     m_htmlTempl = new char[m_para->buffSize + 1];
     m_htmlTempl[0] = 0;
-    m_ufile.resize(10);
     Init();
 }
 
@@ -46,13 +45,7 @@ void HtmlGenThread::ThreadMain()
 
 void HtmlGenThread::Init()
 {
-    char* file_f = "template\\u%d.txt";
-    char filename[MAX_PATH];
-    for (size_t i = 0; i < 10; i++)
-    {
-        sprintf_s(filename, file_f, i);
-        ReadDic(filename, m_ufile[i]);
-    }
+	LoadDicFiles("template\\??.txt", m_dicfiles);
     ReadDic("dic\\eventNames.txt", m_evts);
     ReadDic("dic\\eventFunctions.txt", m_evtfuncs);
     ReadDic2("dic\\tags.txt", m_tag_dom);
@@ -73,8 +66,6 @@ void HtmlGenThread::Init()
     char* chr = new char[1];
     srand((int)chr);
     delete chr;
-
-    file_f = NULL;
 }
 
 void HtmlGenThread::InitTagProperties(
@@ -423,6 +414,45 @@ int HtmlGenThread::ReadDic2(const char * dicfile, map<string, string>& tags)
 	return 0;
 }
 
+int HtmlGenThread::LoadDicFiles(const string & path, map<string, vector<string>>& files)
+{
+	files.clear();
+
+	_finddata_t FileInfo;
+	intptr_t hh = _findfirst(path.c_str(), &FileInfo);
+	if (hh == -1L)
+		return 0;
+
+	do
+	{
+		//判断是否有子目录
+		if (FileInfo.attrib & _A_SUBDIR)
+			continue;
+		else
+		{
+			if (strlen(FileInfo.name) == 6)
+			{
+				string filepath;
+				if (path.rfind('\\') > 0)
+					filepath = path.substr(0, path.rfind('\\') + 1);
+				else
+					filepath = ".\\";
+				filepath.append(FileInfo.name);
+
+				vector<string> lines;
+				string name = string(FileInfo.name, 2);
+				ReadDic(filepath.c_str(), lines);
+				if (!lines.empty())
+					files.insert(make_pair(name, lines));
+			}
+			
+		}
+	} while (_findnext(hh, &FileInfo) == 0);
+
+	_findclose(hh);
+	return files.size();
+}
+
 void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 {
     if (src == NULL || dst == NULL)
@@ -519,10 +549,6 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
             }
             else if (memcmp(tmp + i, "[sf]", 4) == 0)
             {
-                //char* safeurl_f = "window.location.href = 'http://%s:%d';";
-                //char safeurl[100];
-                //sprintf_s(safeurl, safeurl_f, m_para->serverip.c_str(), m_para->port);
-                //memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
 				char *safeurl = "window.location.href = document.URL;";
 				memcpy_s(dst + dstlen, dstsize - dstlen, safeurl, strlen(safeurl));
                 dstlen += (uint32_t)strlen(safeurl);
@@ -538,13 +564,6 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
                     int id = tmp[i + 2];
                     dst[dstlen++] = (char)random('0', id);
                     dst[dstlen] = 0;
-                }
-            }
-            else if (memcmp(tmp + i, "[u", 2) == 0 && tmp[i + 3] == ']')
-            {
-                if (tmp[i + 2] >= '0' && tmp[i + 2] <= '9')
-                {
-                    GenerateFromVector(m_ufile[tmp[i + 2] - '0'], dst, dstsize, dstlen);
                 }
             }
             else if (memcmp(tmp + i, "[e", 2) == 0 && tmp[i + 3] == ']')
@@ -581,6 +600,11 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
 					dstlen += (uint32_t)line.length();
 				}
+			}
+			else if (tmp[i + 3] == ']' && tmp[i + 2] >= '0' && tmp[i + 2] <= '9')
+			{
+				string dicname = string(tmp + i + 1, 2);
+				GenerateFromVector(m_dicfiles[dicname], dst, dstsize, dstlen);
 			}
 			else
 			{

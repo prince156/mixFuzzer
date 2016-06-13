@@ -15,7 +15,7 @@
 #include "fileRecvThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v1.0")
+#define SOFT_VER TEXT("v1.1")
 #define SOFT_LOGO TEXT(\
 	"================================================================================\n"\
 	"|                         Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
