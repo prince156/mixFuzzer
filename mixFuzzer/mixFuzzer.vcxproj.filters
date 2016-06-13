@@ -63,4 +63,7 @@
   <ItemGroup>
     <Text Include="..\mixFuzzer日志.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Output\Debug\config.ini" />
+  </ItemGroup>
 </Project>
