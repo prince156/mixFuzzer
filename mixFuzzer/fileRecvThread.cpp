@@ -15,6 +15,7 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para);
 FileRecvThread::FileRecvThread(PFILERECV_THREAD_PARA para)
 	:GThread(para)
 {
+	m_glogger.setHeader(TEXT("Recv"));
 	m_para = para;
 	InitSocket();
 }
@@ -71,7 +72,7 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 		{
 			first = false;
 			PFILEPACK fp = (PFILEPACK)recvBuff;
-			if (fp->dirLen + sizeof(FILEPACK) > recv_size)
+			if (fp->dirLen + sizeof(FILEPACK) > (uint32_t)recv_size)
 			{
 				glogger.error(TEXT("error file packet"));
 				break;
@@ -85,9 +86,18 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 			else
 				filename += TEXT(".txt");
 
-			dirname = gcommon::StringToTString(string(fp->data, fp->dirLen));
+			dirname = gcommon::StringToTString(string(fp->data, fp->dirLen));			
 			filedata = fp->data + fp->dirLen;
 			datalen = recv_size - sizeof(FILEPACK) - fp->dirLen;
+
+			// 信息
+			// 获取崩溃位置作为目录名
+			tstring remoteIP = inet_ltot(pPara->remoteIP);
+			glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
+			glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
+			glogger.screen(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
+			glogger.logfile(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
+			glogger.setDefaultColor();
 		}
 		else
 		{

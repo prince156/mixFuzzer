@@ -80,8 +80,11 @@ private:
 	string GenJsLine_Property(const vector<PROPERTY>& props, int deep);
 	string GenJsLine_ExecCommand(const vector<PROPERTY>& props, int deep);
 
+	string GetRandomItem(const vector<string>& items);
 	string GetRandomValue(const vector<string>& values);
 	string GetRandomObject(const string& objType);
 	string GetRandomFuncArgs(const PROPERTY& prop);
+
+	string TrueOrFalse();
 };
 
