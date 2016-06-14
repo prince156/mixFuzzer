@@ -54,6 +54,7 @@ private:
 	map<string, string> m_tag_dom;
 	map<string, vector<PROPERTY>> m_tag_props;	
     map<string, vector<PROPERTY>> m_dom_props;
+	map<string, vector<PROPERTY>> m_svg_props;
 	map<string, vector<string>> m_type_values;	// 以%开头的为type
 
 private:
@@ -69,6 +70,8 @@ private:
 		map<string, vector<PROPERTY>>& tag_funcs);
 	void InitTypeValues(const string &path, const string &name, map<string, vector<string>>& tag_values);
 	void HandleInheritation();
+	void GenInheritation(map<string, vector<PROPERTY>> &obj_props, const string& obj); //递归
+	void GenInheritation(map<string, vector<string>> &type_values, const string& type);
 
     void GenerateTempl(const char* src, char* dst);
     void GenerateFromVector(vector<string> &strs, char* dst, uint32_t dstsize, uint32_t& dstlen);

@@ -45,6 +45,8 @@ void HtmlGenThread::ThreadMain()
 
 void HtmlGenThread::Init()
 {
+	m_glogger.info(TEXT("load dictionaries ..."));
+
 	LoadDicFiles("template\\??.txt", m_dicfiles);
     ReadDic("dic\\eventNames.txt", m_evts);
     ReadDic("dic\\eventFunctions.txt", m_evtfuncs);
@@ -56,9 +58,13 @@ void HtmlGenThread::Init()
 		m_tags.push_back(tag_dom.first);
 	}
 
-	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
+	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_svg_props);
+	InitTagProperties("dic\\attributes_svg\\", "attributes-*.txt", m_svg_props);
+	
 	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_dom_props);
 	InitTagProperties("dic\\attributes_dom2html5\\", "attributes-*.txt", m_dom_props);
+
+	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
     InitTypeValues("dic\\values\\", "values-*.txt", m_type_values);
 	HandleInheritation(); // 处里继承
 
@@ -237,119 +243,80 @@ void HtmlGenThread::HandleInheritation()
 		}
 	}
 
-	// 处理m_dom_props的继承数据
-	for each (auto item in m_dom_props)
-	{
-		for (auto i = m_dom_props[item.first].begin(); i < m_dom_props[item.first].end();)
-		{
-			if ((*i).name.front() == '$')
-			{
-				string parent = string((*i).name.c_str() + 1);
-				m_dom_props[item.first].erase(i);
-				if (!m_dom_props[parent].empty())
-				{
-					for each (auto pitem in m_dom_props[parent])
-					{
-						m_dom_props[item.first].push_back(pitem);
-					}
-				}
-				i = m_dom_props[item.first].begin();
-			}
-			else
-				i++;
-		}
-	}
+	
 
 	// 处理m_dom_props的继承数据
 	for each (auto item in m_dom_props)
 	{
-		for (auto i = m_dom_props[item.first].begin(); i < m_dom_props[item.first].end();)
-		{
-			if ((*i).name.front() == '$')
-			{
-				string parent = string((*i).name.c_str() + 1);
-				m_dom_props[item.first].erase(i);
-				if (!m_dom_props[parent].empty())
-				{
-					for each (auto pitem in m_dom_props[parent])
-					{
-						m_dom_props[item.first].push_back(pitem);
-					}
-				}
-				i = m_dom_props[item.first].begin();
-			}
-			else
-				i++;
-		}
+		GenInheritation(m_dom_props, item.first);
 	}
 
 	// 处理m_tag_props的继承数据
 	for each (auto item in m_tag_props)
 	{
-		for (auto i = m_tag_props[item.first].begin(); i < m_tag_props[item.first].end();)
-		{
-			if ((*i).name.front() == '$')
-			{
-				string parent = string((*i).name.c_str() + 1);
-				m_tag_props[item.first].erase(i);
-				if (!m_tag_props[parent].empty())
-				{
-					for each (auto pitem in m_tag_props[parent])
-					{
-						m_tag_props[item.first].push_back(pitem);
-					}
-				}
-				i = m_tag_props[item.first].begin();
-			}
-			else
-				i++;
-		}
+		GenInheritation(m_tag_props, item.first);
 	}
 
-	// 处理m_dtag_funcs的继承数据
-	//for each (auto item in m_dtag_funcs)
-	//{
-	//	for (auto i = m_dtag_funcs[item.first].begin(); i < m_dtag_funcs[item.first].end();)
-	//	{
-	//		if ((*i).name.front() == '$')
-	//		{
-	//			string parent = string((*i).name.c_str() + 1);
-	//			m_dtag_funcs[item.first].erase(i);
-	//			if (!m_dtag_funcs[parent].empty())
-	//			{
-	//				for each (auto pitem in m_dtag_funcs[parent])
-	//				{
-	//					m_dtag_funcs[item.first].push_back(pitem);
-	//				}
-	//			}
-	//			i = m_dtag_funcs[item.first].begin();
-	//		}
-	//		else
-	//			i++;
-	//	}
-	//}
+	// 处理m_svg_props的继承数据
+	for each (auto item in m_svg_props)
+	{
+		GenInheritation(m_svg_props, item.first);
+	}
 
 	// 处理m_type_values的继承数据
 	for each (auto item in m_type_values)
 	{
-		for (auto i = m_type_values[item.first].begin(); i < m_type_values[item.first].end();)
-		{
-			if ((*i).front() == '$')
+		GenInheritation(m_type_values, item.first);
+	}
+
+
+}
+
+void HtmlGenThread::GenInheritation(map<string, vector<PROPERTY>> &obj_props, const string& obj)
+{
+	vector<PROPERTY>& props = obj_props[obj];
+	if (props.empty())
+		return;
+
+	for (auto p = props.begin(); p<props.end(); )
+	{		
+		if ((*p).name.front() == '$')
+		{			
+			string parentobj = (*p).name.substr(1);
+			props.erase(p);
+			GenInheritation(obj_props, parentobj); // name需去除$			
+			for each (auto pitem in obj_props[parentobj])
 			{
-				string parent = string((*i).c_str() + 1);
-				m_type_values[item.first].erase(i);
-				if (!m_type_values[parent].empty())
-				{
-					for each (auto pitem in m_type_values[parent])
-					{
-						m_type_values[item.first].push_back(pitem);
-					}
-				}
-				i = m_type_values[item.first].begin();
-			}
-			else
-				break;
+				props.push_back(pitem);
+			}			
+			p = props.begin();
 		}
+		else
+			p++;
+	}
+}
+
+void HtmlGenThread::GenInheritation(map<string, vector<string>> &type_values, const string& type)
+{
+	vector<string>& values = type_values[type];
+	if (values.empty())
+		return;
+
+	for (auto p = values.begin(); p<values.end(); )
+	{
+		if ((*p).front() == '$')
+		{			
+			string parent = (*p).substr(1);
+			values.erase(p);
+			GenInheritation(type_values, parent);
+			for each (auto pitem in type_values[parent])
+			{
+				values.push_back(pitem);
+			}
+			p = values.begin();
+		}
+		else
+			p++;
 	}
 }
 
@@ -405,9 +372,10 @@ int HtmlGenThread::ReadDic2(const char * dicfile, map<string, string>& tags)
 		for each (string line in lines)
 		{
 			vector<string> tag_dom = SplitString(line, ':');
+			DeleteEmptyItems(tag_dom);
 			if (tag_dom.size() == 2)
 			{
-				tags.insert(make_pair(tag_dom[0], tag_dom[1]));
+				tags.insert(make_pair(tag_dom[0], tag_dom[1].substr(1)));// 须去除$
 			}
 		}		
 	}
