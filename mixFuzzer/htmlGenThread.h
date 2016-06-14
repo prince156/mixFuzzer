@@ -51,10 +51,11 @@ private:
 	vector<string> m_funcNames; // e.g. fuzz0  fuzz1 ...
 	vector<string> m_ids; // e.g. id_0  id_1 ...
 
-	map<string, string> m_tag_dom;
+	map<string, string> m_tag_dom;// <tagname, DOMInterface>
 	map<string, vector<PROPERTY>> m_tag_props;	
     map<string, vector<PROPERTY>> m_dom_props;
-	map<string, vector<string>> m_type_values;	// ÒÔ%¿ªÍ·µÄÎªtype
+	map<string, vector<PROPERTY>> m_svg_props;
+	map<string, vector<string>> m_type_values;
 
 private:
 	void ThreadMain();
@@ -64,27 +65,34 @@ private:
 	int ReadDic(const char* dicfile, vector<string>& list);
 	int ReadDic2(const char* dicfile, map<string,string>& tags);
 	int LoadDicFiles(const string& path, map<string, vector<string>>& files);
-	void InitTagProperties(const string &path, 
-		const string &name, 
-		map<string, vector<PROPERTY>>& tag_funcs);
+	void InitTagProperties(const string &path, const string &name, map<string, vector<PROPERTY>>& tag_funcs);
 	void InitTypeValues(const string &path, const string &name, map<string, vector<string>>& tag_values);
 	void HandleInheritation();
+	void GenInheritation(map<string, vector<PROPERTY>> &obj_props, const string& obj); //µÝ¹é
+	void GenInheritation(map<string, vector<string>> &type_values, const string& type);//µÝ¹é
 
     void GenerateTempl(const char* src, char* dst);
-    void GenerateFromVector(vector<string> &strs, char* dst, uint32_t dstsize, uint32_t& dstlen);
-	
-    string GenTagAttrExp(const string &tag);
+    void GenerateFromVector(vector<string> &strs, char* dst, uint32_t dstsize, uint32_t& dstlen);   
 
+	// DOM
+	string GenTagAttrExp(const string &tag);
 	string GenHtmlLine(int id);
     string GenJsFunction(const string &name);
     string GenJsLine();
-	string GenJsLine_Property(const vector<PROPERTY>& props, int deep);
-	string GenJsLine_ExecCommand(const vector<PROPERTY>& props, int deep);
+	string GenJsLine_Property(const vector<PROPERTY>& props, int deep, const string dft = "id"); //µÝ¹é
+	string GenJsLine_ExecCommand(const vector<PROPERTY>& props, int deep, const string dft = "id");//µÝ¹é
 
-	string GetRandomItem(const vector<string>& items);
-	string GetRandomValue(const vector<string>& values);
-	string GetRandomObject(const string& objType);
-	string GetRandomFuncArgs(const PROPERTY& prop);
+	// SVG
+	string SVG_GenHtmlLine(int id);
+	string SVG_GenJsFunction(const string &name);
+	string SVG_GenJsLine();
+	string SVG_GenJsLine_Property(const vector<PROPERTY>& props, int deep, const string dft = "id");
+	string SVG_GenJsLine_ExecCommand(const vector<PROPERTY>& props, int deep, const string dft = "id");
+
+	string GetRandomItem(const vector<string>& items, const string dft="");
+	string GetRandomValue(const vector<string>& values, const string dft = "null");
+	string GetRandomObject(const string& objType, const string dft = "id_0");
+	string GetRandomFuncArgs(const PROPERTY& prop, const string dft = "");
 
 	string TrueOrFalse();
 };
