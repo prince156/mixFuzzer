@@ -220,3 +220,4 @@ ModelManifest.xml
 /Output/mixfuzz_Debug.7z
 *.7z
 *.html
+/Output/template-example.txt

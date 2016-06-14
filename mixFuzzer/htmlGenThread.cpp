@@ -601,7 +601,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 					dstlen += (uint32_t)line.length();
 				}
 			}
-			else if (tmp[i + 3] == ']' && tmp[i + 2] >= '0' && tmp[i + 2] <= '9')
+			else if (tmp[i + 3] == ']')
 			{
 				string dicname = string(tmp + i + 1, 2);
 				GenerateFromVector(m_dicfiles[dicname], dst, dstsize, dstlen);
