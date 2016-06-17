@@ -189,9 +189,13 @@ void HttpServThread::ThreadMain()
         prevHtml = new char[MAX_SENDBUFF_SIZE];
         prevHtml[0] = 0;
         m_prevHtmls.insert_or_assign(inAddr.sin_addr.S_un.S_addr, (uint64_t)prevHtml);
+		m_clientsActive.insert_or_assign(inAddr.sin_addr.S_un.S_addr, time(NULL));
     }
-    else
-        prevHtml = (char*)m_prevHtmls.at(inAddr.sin_addr.S_un.S_addr);
+	else
+	{
+		prevHtml = (char*)m_prevHtmls.at(inAddr.sin_addr.S_un.S_addr);
+		m_clientsActive.insert_or_assign(inAddr.sin_addr.S_un.S_addr, time(NULL));
+	}
 
     // 启动处理线程
     PSOCK_THREAD_PARA pPara = new SOCK_THREAD_PARA();
@@ -203,6 +207,17 @@ void HttpServThread::ThreadMain()
     DWORD id;
     HANDLE h = CreateThread(NULL, 0, SocketThread, (PVOID)(pPara), 0, &id);
     CloseHandle(h);	
+
+	// 判断client是否存活
+	for (auto actTime = m_clientsActive.begin(); actTime != m_clientsActive.end();)
+	{
+		if (time(NULL) - (*actTime).second > 100) // 超过100s则认为client已经失效
+		{
+			m_glogger.error(TEXT("client seems dead: %s"), gcommon::inet_ltot(inAddr.sin_addr.S_un.S_addr));
+			m_clientsActive.erase(actTime++);
+			m_prevHtmls.erase(inAddr.sin_addr.S_un.S_addr);
+		}
+	}
 }
 
 bool HttpServThread::InitSocket()
