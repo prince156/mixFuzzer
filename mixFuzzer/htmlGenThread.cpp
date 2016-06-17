@@ -783,7 +783,7 @@ string HtmlGenThread::GenJsLine()
 {
 	string prop_right;
 	string tmp, tmp2, tmp3;
-	uint32_t sw = random(0, 14);
+	uint32_t sw = random(0, 15);
 	switch (sw)
 	{
 	case 0: // window对象属性赋值
@@ -856,6 +856,12 @@ string HtmlGenThread::GenJsLine()
 		return "try{var ee = document.createElement(\'" + GetRandomItem(m_htmltags, "div") + "\');" +
 			"ee.id = \"id_" + to_string(m_ids.size() - 1) + "\";" +
 			"document.body.appendChild(ee);" + "}catch(e){}";
+	case 14:
+		tmp = GetRandomItem(m_htmltags, "body");
+		return "try{var ee = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
+			"ee.constructor = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
+			"var tmp = ee." + GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3)) +
+			";" + "}catch(e){}";
 	default:
 		break;
 	}
