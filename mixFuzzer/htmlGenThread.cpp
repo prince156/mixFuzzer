@@ -68,17 +68,22 @@ void HtmlGenThread::Init()
 	for each (auto tag_dom in m_htmltag_dom)
 	{
 		m_htmltags.push_back(tag_dom.first);
+		m_htmldoms.push_back(tag_dom.second);
 	}
 	for each (auto tag_dom in m_svgtag_dom)
 	{
 		m_svgtags.push_back(tag_dom.first);
+		m_svgdoms.push_back(tag_dom.second);
 	}
 
 	// dic for SVG
-	InitTagProperties("dic\\attributes_svg\\", "attributes-*.txt", m_svg_props);
+	InitTagProperties("dic\\attributes_domsvg\\", "attributes-*.txt", m_svg_props);
 	if (m_svg_props.empty())
-		m_glogger.warning(TEXT("load dictionary [attributes_svg] error"));
+		m_glogger.warning(TEXT("load dictionary [attributes_domsvg] error"));
 	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_svg_props);
+	InitTagProperties("dic\\attributes_htmlsvg\\", "attributes-*.txt", m_svgtag_props);
+	if (m_svgtag_props.empty())
+		m_glogger.warning(TEXT("load dictionary [attributes_htmlsvg] error"));
 
 	// dic for DOM
 	InitTagProperties("dic\\attributes_dom2html5\\", "attributes-*.txt", m_dom_props);
@@ -575,7 +580,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 					if (t_end < tmp + i)
 					{
 						tag.assign(++t_start, t_end - t_start);
-						string attexp = GenTagAttrExp(tag);
+						string attexp = GenTagAttrExp(m_tag_props, tag);
 						if (!attexp.empty())
 						{
 							memcpy_s(dst + dstlen, dstsize - dstlen, attexp.c_str(), attexp.size());
@@ -713,12 +718,12 @@ void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, uint32_
 	}
 }
 
-string HtmlGenThread::GenTagAttrExp(const string &tag)
+string HtmlGenThread::GenTagAttrExp(map<string, vector<PROPERTY>>& tag_props, const string &tag)
 {
-	if (m_tag_props[tag].empty())
+	if (tag_props[tag].size() == 0)
 		return string();
-	uint32_t rd = random(0, (uint32_t)m_tag_props[tag].size());
-	PROPERTY attr = m_tag_props[tag][rd];
+	uint32_t rd = random(0, (uint32_t)tag_props[tag].size());
+	PROPERTY attr = tag_props[tag][rd];
 	if (attr.values.empty())
 		return attr.name + "=\'\'";
 
@@ -745,9 +750,9 @@ string HtmlGenThread::GenHtmlLine(int id)
 	string event_exp = GetRandomItem(m_evtfuncs, "onchange") + "='" + 
 		GetRandomItem(m_funcNames,"fuzz0") + "();'";
 
-	string attr_exp1 = GenTagAttrExp(tag);
-	string attr_exp2 = GenTagAttrExp(tag);
-	string attr_exp3 = GenTagAttrExp(tag);
+	string attr_exp1 = GenTagAttrExp(m_tag_props, tag);
+	string attr_exp2 = GenTagAttrExp(m_tag_props, tag);
+	string attr_exp3 = GenTagAttrExp(m_tag_props, tag);
 
 	char* templ = "<%s id='id_%d' %s %s %s %s>fuzz0();</%s>\n\0";
 	char result[1024];
@@ -787,7 +792,7 @@ string HtmlGenThread::GenJsLine()
 			"}catch(e){}";
 	case 1:
 		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
-			GenJsLine_Property(m_dom_props, "HTMLElement", random(0, 5)) +
+			GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 5)) +
 			"}catch(e){}";
 	case 2:
 		return "try{var tmp = document." +
@@ -806,7 +811,7 @@ string HtmlGenThread::GenJsLine()
 			"}catch(e){}";
 	case 5:
 		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
-			GenJsLine_ExecCommand(m_dom_props, "HTMLElement", random(0, 3)) +
+			GenJsLine_ExecCommand(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3)) +
 			"}catch(e){}";
 	case 6:
 		return "try{var tmp = document." +
@@ -834,8 +839,8 @@ string HtmlGenThread::GenJsLine()
 		tmp = GetRandomItem(m_htmltags, "body");
 		return "try{var ee = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
 			"ee.__proto__ = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
-			"var tmp = ee." + GenJsLine_Property(m_dom_props, "HTMLElement", random(0, 3)) + ";" +
-			"}catch(e){}";
+			"var tmp = ee." + GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3)) +
+			";" + "}catch(e){}";
 	case 11:
 		return "try{" + GetRandomObject("HTMLElement") + ".attachEvent(\"" +
 			GetRandomItem(m_evtfuncs, "onchange") + "\"," +
@@ -991,17 +996,20 @@ string HtmlGenThread::SVG_GenHtmlLine(int id)
 	string event_exp = GetRandomItem(m_evtfuncs, "onchange") + "='" + 
 			GetRandomItem(m_funcNames, "fuzz0") + "();'";	
 
-	string attr_exp1 = "style = \"fill:"+ GetRandomItem(m_type_values["color"]) +
+	string color = GetRandomItem(m_type_values["color"], "rgb(0,0,255)");
+	string attr_exp1 = GenTagAttrExp(m_svgtag_props, tag);
+	string attr_exp2 = GenTagAttrExp(m_svgtag_props, tag);
+	string attr_exp3 = "style = \"fill:"+ color.substr(1, color.size()-2) +
 		";stroke-width:" + to_string(random(1,20)) +
-		";stroke:"+ GetRandomItem(m_type_values["color"]) +"\"";
-	//string attr_exp2 = GenTagAttrExp(tag);
-	//string attr_exp3 = GenTagAttrExp(tag);
+		";stroke:"+ color.substr(1, color.size() - 2) +"\"";
 
-	char* templ = "<%s id='id_%d' %s %s>fuzz0();</%s>\n\0";
+	char* templ = "<%s id='id_%d' %s %s %s %s>fuzz0();</%s>\n\0";
 	char result[1024];
 	sprintf_s(result, templ, tag.c_str(), id,
 		event_exp.c_str(),
 		attr_exp1.c_str(),
+		attr_exp2.c_str(),
+		attr_exp3.c_str(),
 		tag.c_str());
 	return string(result);
 }
@@ -1028,17 +1036,11 @@ string HtmlGenThread::SVG_GenJsLine()
 	switch (sw)
 	{
 	case 0: // window对象属性赋值
-		return "try{var tmp = window." +
-			GenJsLine_Property(m_svg_props, "Window", random(0, 5)) +
-			"}catch(e){}";
 	case 1:
-		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
-			GenJsLine_Property(m_svg_props, "SVGElement", random(0, 5)) +
-			"}catch(e){}";
 	case 2:
-		return "try{var tmp = document." +
-			GenJsLine_Property(m_svg_props, "Document", random(0, 5))
-			+ "}catch(e){}";
+		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
+			GenJsLine_Property(m_svg_props, GetRandomItem(m_svgdoms, "SVGSVGElement"), random(0, 5)) +
+			"}catch(e){}";
 	case 3:
 		tmp = GetRandomItem(m_svgtags, "svg");
 		return "try{var els=document.getElementsByTagName(\"" +
@@ -1047,16 +1049,10 @@ string HtmlGenThread::SVG_GenJsLine()
 			GenJsLine_Property(m_svg_props, m_svgtag_dom[tmp], random(0, 5)) +
 			"}catch(e){}";
 	case 4:
-		return "try{var tmp = window." +
-			GenJsLine_ExecCommand(m_svg_props, "Window", random(0, 3)) +
-			"}catch(e){}";
-	case 5:
-		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
-			GenJsLine_ExecCommand(m_svg_props, "HTMLElement", random(0, 3)) +
-			"}catch(e){}";
+	case 5:		
 	case 6:
-		return "try{var tmp = document." +
-			GenJsLine_ExecCommand(m_svg_props, "Document", random(0, 3)) +
+		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
+			GenJsLine_ExecCommand(m_svg_props, GetRandomItem(m_svgdoms, "SVGSVGElement"), random(0, 3)) +
 			"}catch(e){}";
 	case 7:
 		tmp = GetRandomItem(m_svgtags, "svg");
@@ -1074,14 +1070,14 @@ string HtmlGenThread::SVG_GenJsLine()
 	case 9:
 		tmp = GetRandomItem(m_ids, "id_0");
 		return "try{var ee = document.createElement(\'" +
-			GetRandomItem(m_svgtags) + "\');" +
+			GetRandomItem(m_svgtags, "svg") + "\');" +
 			tmp + ".replaceChild(" + tmp + ".firstChild,ee);" + "}catch(e){}";
 	case 10:
 		tmp = GetRandomItem(m_svgtags, "svg");
 		return "try{var ee = " + GetRandomObject(m_svgtag_dom[tmp]) + ";" +
 			"ee.__proto__ = " + GetRandomObject(m_svgtag_dom[tmp]) + ";" +
-			"var tmp = ee." + GenJsLine_Property(m_svg_props, "HTMLElement", random(0, 3)) + ";" +
-			"}catch(e){}";
+			"var tmp = ee." + GenJsLine_Property(m_svg_props, GetRandomItem(m_svgdoms, "SVGSVGElement"), random(0, 3)) + 
+			";" + "}catch(e){}";
 	case 11:
 		return "try{" + GetRandomObject("HTMLElement") + ".attachEvent(\"" +
 			GetRandomItem(m_evtfuncs, "onchange") + "\"," +

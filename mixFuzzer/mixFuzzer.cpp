@@ -363,7 +363,7 @@ int _tmain(int argc, TCHAR** argv)
         {
             while (GetDebugInfo(outputPipeR, rbuff, buffsize, 100));
             WriteFile(inputPipeW, "|*\n", 3, &nwrite, NULL);
-            if (GetDebugInfo(outputPipeR, rbuff, buffsize, 200) > 0)
+            if (GetDebugInfo(outputPipeR, rbuff, buffsize) > 0)
             {
                 size_t pos = 0;
                 size_t bufflen = strlen(rbuff);
@@ -578,7 +578,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
     char rbuff[1024 + 1];
 	GetDebugInfo(houtPipeR, rbuff, 1024, 500);
     WriteFile(hinPipeW, "u eip L1\n", 9, &nwrite, NULL);
-    nread = GetDebugInfo(houtPipeR, rbuff, 1024, 500);
+    nread = GetDebugInfo(houtPipeR, rbuff, 1024);
     if (nread == 0)
         return tstring(TEXT("unknown"));
 
