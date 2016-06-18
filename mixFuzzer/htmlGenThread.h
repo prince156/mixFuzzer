@@ -47,7 +47,9 @@ private:
 	vector<string> m_evts;  // e.g. click
 	vector<string> m_evtfuncs; // e.g. onclick
 	vector<string> m_htmltags;	// html tags
+	vector<string> m_htmldoms;
 	vector<string> m_svgtags;	// svg tags
+	vector<string> m_svgdoms;	
     vector<string> m_commands;
 	vector<string> m_funcNames; // e.g. fuzz0  fuzz1 ...
 	vector<string> m_ids; // e.g. id_0  id_1 ...
@@ -55,6 +57,7 @@ private:
 	map<string, string> m_htmltag_dom;// <tagname, DOMInterface>
 	map<string, string> m_svgtag_dom;// <tagname, DOMInterface>
 	map<string, vector<PROPERTY>> m_tag_props;	
+	map<string, vector<PROPERTY>> m_svgtag_props;
     map<string, vector<PROPERTY>> m_dom_props;
 	map<string, vector<PROPERTY>> m_svg_props;
 	map<string, vector<string>> m_type_values;
@@ -91,7 +94,7 @@ private:
 	string SVG_GenJsFunction(const string &name);
 	string SVG_GenJsLine();
 
-	string GenTagAttrExp(const string &tag);
+	string GenTagAttrExp(map<string, vector<PROPERTY>>& tag_props,const string &tag);
 	string GetRandomItem(const vector<string>& items, const string dft="");
 	string GetRandomValue(const vector<string>& values, const string dft = "null");
 	string GetRandomObject(const string& objType, const string dft = "id_0");

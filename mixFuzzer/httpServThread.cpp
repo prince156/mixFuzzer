@@ -169,6 +169,24 @@ DWORD WINAPI SocketThread(PVOID para)
 
 void HttpServThread::ThreadMain()
 {
+	// 判断client是否存活
+	for (auto actTime = m_clientsActive.begin(); actTime != m_clientsActive.end();)
+	{
+		if (time(NULL) - (*actTime).second > 300) // 超过300s则认为client已经失效
+		{
+			tstring remoteIP = inet_ltot((*actTime).first);
+			glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
+			glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
+			glogger.screen(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
+			glogger.logfile(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
+			glogger.setDefaultColor();
+
+			m_prevHtmls.erase((*actTime).first);
+			m_clientsActive.erase(actTime);
+		}
+		actTime++;
+	}
+
     // 等待客户端建立连接
     SOCKADDR_IN inAddr;
     inAddr.sin_family = AF_INET;
@@ -189,9 +207,13 @@ void HttpServThread::ThreadMain()
         prevHtml = new char[MAX_SENDBUFF_SIZE];
         prevHtml[0] = 0;
         m_prevHtmls.insert_or_assign(inAddr.sin_addr.S_un.S_addr, (uint64_t)prevHtml);
+		m_clientsActive.insert_or_assign(inAddr.sin_addr.S_un.S_addr, time(NULL));
     }
-    else
-        prevHtml = (char*)m_prevHtmls.at(inAddr.sin_addr.S_un.S_addr);
+	else
+	{
+		prevHtml = (char*)m_prevHtmls.at(inAddr.sin_addr.S_un.S_addr);
+		m_clientsActive.insert_or_assign(inAddr.sin_addr.S_un.S_addr, time(NULL));
+	}
 
     // 启动处理线程
     PSOCK_THREAD_PARA pPara = new SOCK_THREAD_PARA();
@@ -202,7 +224,7 @@ void HttpServThread::ThreadMain()
 	pPara->prevHtml = prevHtml;
     DWORD id;
     HANDLE h = CreateThread(NULL, 0, SocketThread, (PVOID)(pPara), 0, &id);
-    CloseHandle(h);	
+    CloseHandle(h);		
 }
 
 bool HttpServThread::InitSocket()

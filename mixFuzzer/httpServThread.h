@@ -37,6 +37,7 @@ private:
 	SOCKET m_sock;	
 	vector<RESOURCE> m_resources;
     map<DWORD, uint64_t> m_prevHtmls;
+	map<DWORD, time_t> m_clientsActive;
 
 private:
 	void ThreadMain();
