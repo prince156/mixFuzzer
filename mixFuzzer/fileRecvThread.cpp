@@ -92,12 +92,15 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 
 			// 信息
 			// 获取崩溃位置作为目录名
-			tstring remoteIP = inet_ltot(pPara->remoteIP);
-			glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
-			glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
-			glogger.screen(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
-			glogger.logfile(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
-			glogger.setDefaultColor();
+			if (fp->type == 'H')
+			{
+				tstring remoteIP = inet_ltot(pPara->remoteIP);
+				glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
+				glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
+				glogger.screen(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
+				glogger.logfile(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
+				glogger.setDefaultColor();
+			}			
 		}
 		else
 		{
