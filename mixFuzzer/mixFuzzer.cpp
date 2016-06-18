@@ -308,6 +308,10 @@ int _tmain(int argc, TCHAR** argv)
         _stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
         BOOL bRet = CreateProcess(NULL, cmdline,
             NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
+		if (pi_edge.hProcess) 
+			CloseHandle(pi_edge.hProcess);
+		if (pi_edge.hThread)
+			CloseHandle(pi_edge.hThread);
         if (!bRet)
         {
             glogger.error(TEXT("Cannot start ") + fuzztarget);
@@ -344,6 +348,10 @@ int _tmain(int argc, TCHAR** argv)
             glogger.error(TEXT("Cannot attach debugger, restart fuzz."));
             exit(_getch());
         }
+		if (pi_cdb.hProcess)
+			CloseHandle(pi_cdb.hProcess);
+		if (pi_cdb.hThread)
+			CloseHandle(pi_cdb.hThread);
 
         // attachÊ£ÓàµÄpid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
         for (size_t i = 1; i < procIDs.size(); i++)
@@ -594,7 +602,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
         }
     }
 
-    if (i != start)
+    if (i != start || start == 0)
     {
         return tstring(TEXT("unknown"));
     }
@@ -860,6 +868,11 @@ void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int ma
                 glogger.warning(TEXT("failed to open %s"), FileInfo.name);
                 continue;
             }
+			if (ftempl == NULL)
+			{
+				glogger.warning(TEXT("failed to read %s"), FileInfo.name);
+				continue;
+			}
 
             char* htmlTempl = new char[maxBuffSize + 1];
             char* htmlTemplBak = new char[maxBuffSize + 1];
@@ -868,7 +881,7 @@ void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int ma
             if (tmplsize == 0)
             {
                 glogger.warning(TEXT("failed to read %s"), FileInfo.name);
-                delete htmlTempl;
+                delete[] htmlTempl;
                 continue;
             }
             htmlTempl[tmplsize] = 0;
@@ -1004,7 +1017,7 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 	memcpy(filepacket->data + crashpos.size(), data, datalen);
 
 	ret = send(sock, sendBuff, (int)(sizeof(FILEPACK) + crashpos.size() + datalen), 0);
-	delete sendBuff;
+	delete[] sendBuff;
 	closesocket(sock);
 	WSACleanup();
 

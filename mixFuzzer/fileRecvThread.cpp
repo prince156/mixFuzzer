@@ -46,7 +46,7 @@ void FileRecvThread::ThreadMain()
 	pPara->para = m_para;
 	DWORD id;
 	HANDLE h = CreateThread(NULL, 0, SocketThread_FileRecv, (PVOID)(pPara), 0, &id);
-	CloseHandle(h); // 关闭句柄，释放句柄资源，不影响线程运行
+	if(h) CloseHandle(h); // 关闭句柄，释放句柄资源，不影响线程运行
 }
 
 DWORD WINAPI SocketThread_FileRecv(PVOID para)
@@ -133,7 +133,7 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 
 	if (ff)fclose(ff);
 	closesocket(pPara->sock);
-	delete recvBuff;
+	delete[] recvBuff;
 	return 0;
 }
 

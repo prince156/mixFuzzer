@@ -50,12 +50,13 @@ DWORD WINAPI SocketThread(PVOID para)
     PSOCK_THREAD_PARA pPara = (PSOCK_THREAD_PARA)para;
 
     // 接收请求数据
-    int ret = recv(pPara->sock, m_receiveMessage, 1024, 0);
+    int ret = recv(pPara->sock, m_receiveMessage, 1023, 0);
     if (ret == 0 || ret == SOCKET_ERROR)
     {
         goto _safe_exit;
     }
-    m_receiveMessage[ret] = 0;
+	ret = (ret < 1024) ? ret : 1023;
+	m_receiveMessage[ret] = 0;
 
     // 获取Get的URL
     char* url_start = strstr(m_receiveMessage, " ");
@@ -154,14 +155,17 @@ DWORD WINAPI SocketThread(PVOID para)
     send(pPara->sock, m_sendBuff, (int)(headLen + dataLen), 0);
 
     // 保存html
-    memcpy(pPara->prevHtml, m_sendBuff + headLen, dataLen);
-    pPara->prevHtml[dataLen] = 0;
+	if (pPara->prevHtml)
+	{
+		memcpy(pPara->prevHtml, m_sendBuff + headLen, dataLen);
+		pPara->prevHtml[dataLen] = 0;
+	}
 
     _safe_exit:
     closesocket(pPara->sock);
-    delete m_receiveMessage;
-    delete m_requestUrl;
-    delete m_sendBuff;
+    delete[] m_receiveMessage;
+    delete[] m_requestUrl;
+    delete[] m_sendBuff;
     delete para;
     return 0;
 }
@@ -224,7 +228,7 @@ void HttpServThread::ThreadMain()
 	pPara->prevHtml = prevHtml;
     DWORD id;
     HANDLE h = CreateThread(NULL, 0, SocketThread, (PVOID)(pPara), 0, &id);
-    CloseHandle(h);		
+    if(h) CloseHandle(h);		
 }
 
 bool HttpServThread::InitSocket()
@@ -294,9 +298,9 @@ void HttpServThread::InitResources()
 			filepath.append(FileInfo.name);
 			FILE* ff;
 			if (fopen_s(&ff, filepath.c_str(), "rb") != 0)
-			{
 				continue;
-			}
+			if (ff == NULL)
+				continue;
 			
 			char* data = new char[FileInfo.size + 1];
 			size_t nread = fread_s(data, FileInfo.size + 1, 1, FileInfo.size, ff);

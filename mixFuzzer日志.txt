@@ -1,5 +1,3 @@
-? 程序中自动关闭edge的内存保护
-? 增加对svg、css的fuzz
 ? 写入管道时WriteFile偶尔会阻塞卡死
 
 fuzz标识说明：
@@ -9,6 +7,7 @@ fuzz标识说明：
 [u?]: 0~9, fuzz语句文件，支持0~9共10个文件:
 [n?]: 0~9, 数字0~9
 [e?]: 0~9, 随机创建0~9个html标签,id_0~id_8
+{e?}: 0~9, 随机创建0~9个svg标签,id_0~id_8
 [nr]: 随机数0~0x00ffffff
 [sf]: window.location.href = document.URL;
 *[fn]: e.g. id_[n9].[fn];
@@ -19,9 +18,15 @@ fuzz标识说明：
 [vl]: 中values-str.txt中读取一行，id_[n9].length = [vl]; 
 [el]: 从tags.txt中读取一行，document.createElement('[el]');
 [ln]: 随机js行
+{ln}: 随机js行（svg）
 [ff]: 随机function
+{ff}: 随机function（svg）
+
+[2016-06-18]
+* 修复client模式下仍尝试加载字典的bug
 
 [2016-06-18 v1.2]
+* 生成效率：2000/s
 * 增加对client存活的判断
 * 增加对SVG的支持
 * 增加attributes相关字典对多重继承的支持
@@ -31,6 +36,7 @@ fuzz标识说明：
 * 修复服务端发送fuzz样本不完整的bug（互斥访问未处理好）
 
 [2016-06-13 v1.1]
+* 生成效率：4000/s
 * 浏览器启动等待时间调整
 * [ff]标签生成的函数名改为fuzz?()
 * 修复无法结束microsoftedge.exe进程的bug
@@ -41,6 +47,7 @@ fuzz标识说明：
 * 完善GetRandomObject
 
 [2016-06-06 v1.0]
+* 生成效率：4000/s
 * 增加对其他浏览器的统一支持
 * webserver模式，增加收集poc和log文件的功能
 * 修复无法kill edge相关进程的bug
@@ -52,6 +59,7 @@ fuzz标识说明：
 * 避免使用command: "insertParagraph" , false, "paragraph"
 
 [2016-05-24 v0.9]
+* 生成效率：4000/s
 * 增加[dt] [cc] [cd] [ff] [ln]等fuzz标签
 * 新增fuzzstr.h，集中存放fuzz使用的字符串集合
 * 改进模板生成过程
@@ -61,6 +69,7 @@ fuzz标识说明：
 * 将属性和方法合并至同一字典中
 
 [2016-04-20 v0.8]
+* 生成效率：4300/s
 * 增加配置项：WEB_SERVER_PORT（HTTP服务端口，默认值：12228）
 * 增加配置项：WAIT_TIME（等待浏览器启动时间，默认值：2000）
 * 增加配置项：MAX_POC_COUNT（同一个目录中最大poc数量：默认值：10）

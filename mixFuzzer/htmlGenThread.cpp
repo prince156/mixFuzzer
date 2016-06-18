@@ -109,7 +109,7 @@ void HtmlGenThread::Init()
 						  // rand seed
 	char* chr = new char[1];
 	srand((int)chr);
-	delete chr;
+	delete[] chr;
 }
 
 void HtmlGenThread::InitTagProperties(
@@ -400,10 +400,11 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
 	list.clear();
 	FILE* file;
 	errno_t err = fopen_s(&file, dicfile, "r");
-	if (err != 0)
-	{
+	if (err != 0 || file == NULL)
 		return 0;
-	}
+
+	if (m_para->buffSize <= 0)
+		return 0;
 
 	char* ufiledata = new char[m_para->buffSize];
 	size_t nread = fread_s(ufiledata, m_para->buffSize, 1, m_para->buffSize - 1, file);
@@ -413,10 +414,13 @@ int HtmlGenThread::ReadDic(const char * dicfile, vector<string>& list)
 		delete[] ufiledata;
 		return 0;
 	}
+
+	nread = (nread < m_para->buffSize) ? nread : m_para->buffSize - 1;
 	ufiledata[nread] = 0;
 
 	size_t start = 0;
 	size_t len = strlen(ufiledata);
+	len = (len <= m_para->buffSize) ? len : m_para->buffSize;
 	for (size_t j = start; j < len; j++)
 	{
 		if (ufiledata[j] == '\n')
@@ -706,7 +710,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 			dst[dstlen++] = tmp[i];
 	}
 	dst[dstlen] = 0;
-	delete tmp;
+	delete[] tmp;
 }
 
 void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, uint32_t dstsize, uint32_t & dstlen)
