@@ -117,25 +117,23 @@ DWORD WINAPI SocketThread(PVOID para)
         {            
             sendHead = m_htmlHead;
             sendData = m_errorpage;
-            dataLen = strlen(m_errorpage);
         }
     }
     else //样本
     {
-        sendData = pPara->para->htmlBuff;
-        dataLen = strlen(sendData);
+        sendData = pPara->para->htmlBuff;        
     }
 
     if (headLen + dataLen > MAX_SENDBUFF_SIZE)
     {
         sendHead = m_htmlHead;
         sendData = m_errorpage;
-        dataLen = strlen(m_errorpage);
     }
 
     // 其他资源请求，直接发送
     if (sendData != pPara->para->htmlBuff)
     {
+		dataLen = strlen(sendData);
         memcpy(m_sendBuff, sendHead, headLen);
         memcpy(m_sendBuff + headLen, sendData, dataLen);
         m_sendBuff[headLen + dataLen] = 0;
@@ -149,6 +147,7 @@ DWORD WINAPI SocketThread(PVOID para)
     {
         goto _safe_exit;
     }
+	dataLen = strlen(sendData);
     memcpy(m_sendBuff + headLen, sendData, dataLen);
     m_sendBuff[headLen + dataLen] = 0;
     ReleaseSemaphore(pPara->para->semHtmlbuff_p, 1, NULL);// 释放互斥量       
@@ -182,9 +181,10 @@ void HttpServThread::ThreadMain()
 			glogger.setDefaultColor();
 
 			m_prevHtmls.erase((*actTime).first);
-			m_clientsActive.erase(actTime);
+			m_clientsActive.erase(actTime++);
 		}
-		actTime++;
+		else
+			actTime++;
 	}
 
     // 等待客户端建立连接
