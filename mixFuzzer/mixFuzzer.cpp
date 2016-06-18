@@ -184,6 +184,7 @@ int _tmain(int argc, TCHAR** argv)
     htmlGenPara.serverip = WStringToString(serverIP);
     htmlGenPara.port = serverPort;
     htmlGenPara.debugLevel = debug_level;
+	htmlGenPara.mode = mode;
 	FILERECV_THREAD_PARA fileRecvPara;
 	fileRecvPara.debugLevel = debug_level;
 	fileRecvPara.outPath = outPath;

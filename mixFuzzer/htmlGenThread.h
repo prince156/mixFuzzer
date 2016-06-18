@@ -23,6 +23,7 @@ typedef struct _htmlgen_para:_thread_para
     vector<char*> htmlTempls;
 	string serverip = "127.0.0.1";
 	int port = 12228;
+	tstring mode;
 }HTMLGEN_THREA_PARA,*PHTMLGEN_THREAD_PARA;
 
 typedef struct _attr

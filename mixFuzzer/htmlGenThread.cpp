@@ -14,7 +14,8 @@ HtmlGenThread::HtmlGenThread(PHTMLGEN_THREAD_PARA para)
 	m_para = para;
 	m_htmlTempl = new char[m_para->buffSize + 1];
 	m_htmlTempl[0] = 0;
-	Init();
+	if(m_para->mode != TEXT("client"))
+		Init();
 }
 
 
