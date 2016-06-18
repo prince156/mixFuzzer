@@ -14,7 +14,7 @@ HtmlGenThread::HtmlGenThread(PHTMLGEN_THREAD_PARA para)
 	m_para = para;
 	m_htmlTempl = new char[m_para->buffSize + 1];
 	m_htmlTempl[0] = 0;
-	if(m_para->mode != TEXT("client"))
+	if (m_para->mode != TEXT("client"))
 		Init();
 }
 
@@ -270,6 +270,7 @@ void HtmlGenThread::InitTypeValues(
 	_findclose(hh);
 }
 
+// Ì«ÂýÁË£¡£¡
 void HtmlGenThread::InitRetobjDic()
 {
 	// DOM
@@ -751,9 +752,9 @@ string HtmlGenThread::GenHtmlLine(int id)
 {
 	if (m_htmltags.empty())
 		return string();
-	string tag = GetRandomItem(m_htmltags,"div");
-	string event_exp = GetRandomItem(m_evtfuncs, "onchange") + "='" + 
-		GetRandomItem(m_funcNames,"fuzz0") + "();'";
+	string tag = GetRandomItem(m_htmltags, "div");
+	string event_exp = GetRandomItem(m_evtfuncs, "onchange") + "='" +
+		GetRandomItem(m_funcNames, "fuzz0") + "();'";
 
 	string attr_exp1 = GenTagAttrExp(m_tag_props, tag);
 	string attr_exp2 = GenTagAttrExp(m_tag_props, tag);
@@ -879,7 +880,7 @@ string HtmlGenThread::GenJsLine_Property(const map<string, vector<PROPERTY>>& ob
 	if (obj_props.empty() || obj_props.find(obj) == obj_props.end())
 		return dft;
 
-	auto props = obj_props.at(obj);
+	const vector<PROPERTY>& props = obj_props.at(obj);
 	if (props.empty())
 		return dft;
 
@@ -941,7 +942,7 @@ string HtmlGenThread::GenJsLine_ExecCommand(const map<string, vector<PROPERTY>>&
 		return dft;
 	}
 
-	auto props = obj_props.at(obj);
+	const vector<PROPERTY>& props = obj_props.at(obj);
 	if (props.empty())
 		return dft;
 
@@ -1004,15 +1005,15 @@ string HtmlGenThread::SVG_GenHtmlLine(int id)
 	if (m_svgtags.empty())
 		return string();
 	string tag = GetRandomItem(m_svgtags, "rect");
-	string event_exp = GetRandomItem(m_evtfuncs, "onchange") + "='" + 
-			GetRandomItem(m_funcNames, "fuzz0") + "();'";	
+	string event_exp = GetRandomItem(m_evtfuncs, "onchange") + "='" +
+		GetRandomItem(m_funcNames, "fuzz0") + "();'";
 
 	string color = GetRandomItem(m_type_values["color"], "rgb(0,0,255)");
 	string attr_exp1 = GenTagAttrExp(m_svgtag_props, tag);
 	string attr_exp2 = GenTagAttrExp(m_svgtag_props, tag);
-	string attr_exp3 = "style = \"fill:"+ color.substr(1, color.size()-2) +
-		";stroke-width:" + to_string(random(1,20)) +
-		";stroke:"+ color.substr(1, color.size() - 2) +"\"";
+	string attr_exp3 = "style = \"fill:" + color.substr(1, color.size() - 2) +
+		";stroke-width:" + to_string(random(1, 20)) +
+		";stroke:" + color.substr(1, color.size() - 2) + "\"";
 
 	char* templ = "<%s id='id_%d' %s %s %s %s>fuzz0();</%s>\n\0";
 	char result[1024];
@@ -1060,7 +1061,7 @@ string HtmlGenThread::SVG_GenJsLine()
 			GenJsLine_Property(m_svg_props, m_svgtag_dom[tmp], random(0, 5)) +
 			"}catch(e){}";
 	case 4:
-	case 5:		
+	case 5:
 	case 6:
 		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
 			GenJsLine_ExecCommand(m_svg_props, GetRandomItem(m_svgdoms, "SVGSVGElement"), random(0, 3)) +
@@ -1087,7 +1088,7 @@ string HtmlGenThread::SVG_GenJsLine()
 		tmp = GetRandomItem(m_svgtags, "svg");
 		return "try{var ee = " + GetRandomObject(m_svgtag_dom[tmp]) + ";" +
 			"ee.__proto__ = " + GetRandomObject(m_svgtag_dom[tmp]) + ";" +
-			"var tmp = ee." + GenJsLine_Property(m_svg_props, GetRandomItem(m_svgdoms, "SVGSVGElement"), random(0, 3)) + 
+			"var tmp = ee." + GenJsLine_Property(m_svg_props, GetRandomItem(m_svgdoms, "SVGSVGElement"), random(0, 3)) +
 			";" + "}catch(e){}";
 	case 11:
 		return "try{" + GetRandomObject("HTMLElement") + ".attachEvent(\"" +

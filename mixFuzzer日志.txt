@@ -10,7 +10,6 @@ fuzz标识说明：
 {e?}: 0~9, 随机创建0~9个svg标签,id_0~id_8
 [nr]: 随机数0~0x00ffffff
 [sf]: window.location.href = document.URL;
-*[fn]: e.g. id_[n9].[fn];
 [ef]: 从event-functions.txt中读取一行
 [ev]: 从events.txt中读取一行
 [ae]: e.g. attribute="value" 
@@ -24,6 +23,7 @@ fuzz标识说明：
 
 [2016-06-18]
 * 修复client模式下仍尝试加载字典的bug
+* 提高fuzz样本生成效率
 
 [2016-06-18 v1.2]
 * 生成效率：2000/s
