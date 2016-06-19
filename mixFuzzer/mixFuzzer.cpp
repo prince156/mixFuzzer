@@ -181,7 +181,7 @@ int _tmain(int argc, TCHAR** argv)
     htmlGenPara.htmlTempls = htmlTempls;
     htmlGenPara.semHtmlbuff_c = semaphorec;
     htmlGenPara.semHtmlbuff_p = semaphorep;
-    htmlGenPara.serverip = WStringToString(serverIP);
+    htmlGenPara.serverip = TStringToString(serverIP);
     htmlGenPara.port = serverPort;
     htmlGenPara.debugLevel = debug_level;
 	htmlGenPara.mode = mode;
@@ -328,7 +328,8 @@ int _tmain(int argc, TCHAR** argv)
         if (procIDs.empty())
         {
             glogger.error(TEXT("Cannot start the browser, restart fuzz."));		
-			waitTime += 500;
+			if (waitTime < 2 * minWaitTime)
+				waitTime += 100;
             continue;
         }
 
@@ -342,7 +343,7 @@ int _tmain(int argc, TCHAR** argv)
         si_cdb.hStdOutput = outputPipeW;
         si_cdb.hStdError = outputPipeW;
         PROCESS_INFORMATION pi_cdb = {};
-        if (!CreateProcess(NULL, (LPWSTR)sCommandLine.c_str(),
+        if (!CreateProcess(NULL, (LPTSTR)sCommandLine.c_str(),
             NULL, NULL, TRUE, 0, NULL, NULL, &si_cdb, &pi_cdb))
         {
             glogger.error(TEXT("Cannot attach debugger, restart fuzz."));
@@ -358,13 +359,13 @@ int _tmain(int argc, TCHAR** argv)
         {
             glogger.info(TEXT("  -pid:") + to_tstring(procIDs[i]));
             sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");
-            WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+            WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
             WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
             sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");
-            WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+            WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
             WriteFile(inputPipeW, "~*m\n", 4, &nwrite, NULL);
             sCommandLine = TEXT(".childdbg1\n");
-            WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+            WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
         }
 
         // debug信息：|*\n
@@ -391,7 +392,7 @@ int _tmain(int argc, TCHAR** argv)
         // 设置symbol path		
         sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\";g;\n"); // 同时加入g; 防止后面出现异常
 		glogger.debug1(TEXT("set sympath in gdb: ") + sCommandLine);
-        WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+        WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
         Sleep(100);
 
         // 监听cdg循环
@@ -415,7 +416,8 @@ int _tmain(int argc, TCHAR** argv)
                 }
                 procIDs_new.clear();
 				glogger.info(TEXT("restart fuzz ..."));
-				waitTime += 500;
+				if (waitTime < 3 * minWaitTime)
+					waitTime += 500;
 				break;
             }
 
@@ -551,7 +553,7 @@ int _tmain(int argc, TCHAR** argv)
                 sCommandLine = TEXT("lmDvm ");
                 sCommandLine.append(module);
                 sCommandLine.append(TEXT("\n"));
-                WriteFile(inputPipeW, WStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+                WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
 				{
 					strcat(logbuff, pbuff);					
@@ -602,14 +604,14 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
         }
     }
 
-    if (i != start || start == 0)
+    if (i != start)
     {
         return tstring(TEXT("unknown"));
     }
 
     for (i = start; i < strlen(rbuff); i++)
     {
-		if (rbuff[i] == '\n')
+		if (rbuff[i] == '\n' && i > 0)
 		{
 			rbuff[i - 1] = 0;
 			break;
@@ -636,7 +638,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 			rbuff[i] = '-';
     }
 
-    return StringToWString(string(rbuff + start));
+    return StringToTString(string(rbuff + start));
 }
 
 bool CheckCCInt3(char* buff)
