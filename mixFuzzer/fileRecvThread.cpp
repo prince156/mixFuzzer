@@ -81,6 +81,8 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 			filename = to_tstring(fp->time);
 			if (fp->type == 'H')
 				filename += TEXT(".html");
+			else if (fp->type == 'P')
+				filename += TEXT("_prev.html");
 			else if (fp->type == 'L')
 				filename += TEXT(".log");
 			else

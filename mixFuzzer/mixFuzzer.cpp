@@ -39,9 +39,11 @@ vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids= vector
 bool TerminateAllProcess(LPCTSTR pszProcessName);
 uint32_t GetFilecountInDir(tstring dir, tstring fileext);
 void LoudTemplate(vector<PTMPL_NODE> &templnodes, vector<char*> &templs, int maxBuffSize);
-uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff);
+uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring& name, char* buff);
 uint32_t SendFile(tstring serverip, uint16_t port, 
 	time_t time, const tstring &crashpos, byte type, char* data, int datalen);
+uint32_t LogFile(const tstring &outpath, const tstring &crashpos, 
+	const tstring &endstr, char* data, int datalen, time_t ct);
 bool IsWow64();
 
 
@@ -64,6 +66,7 @@ int _tmain(int argc, TCHAR** argv)
     tstring symPath = TEXT("srv*");
     tstring outPath = TEXT("crash");
     tstring htmlPath;
+	tstring prevHtmlPath;
     tstring logPath;
     tstring appPath = TEXT("explorer Microsoft-Edge:");
 	tstring parentProcName = TEXT("MicrosoftEdge.exe");
@@ -252,6 +255,7 @@ int _tmain(int argc, TCHAR** argv)
     char* rbuff = new char[buffsize + 1];
     char* pbuff = new char[2 * buffsize + 1];
     char* pocbuff = new char[MAX_SENDBUFF_SIZE + 1];
+	char* prevpocbuff = new char[MAX_SENDBUFF_SIZE + 1];
 	char* logbuff = new char[MAX_SENDBUFF_SIZE + 1];
     while (true)
     {
@@ -481,14 +485,11 @@ int _tmain(int argc, TCHAR** argv)
                 if (debug_level > 0)
                 {
                     printf("+1 [main] %s\n", pbuff);
-                }				
-
-                // 生成时间戳
-                time_t ct = time(NULL);
+                }				               
 
                 // 获取崩溃位置作为目录名
                 tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
-                tstring module = crashpos.substr(0, crashpos.find_first_of('_'));
+                
                 htmlPath = outPath + crashpos + TEXT("\\");
 				CreateDirectory(htmlPath.c_str(), NULL);
 
@@ -501,32 +502,13 @@ int _tmain(int argc, TCHAR** argv)
                 }
                 glogger.info(TEXT("create html and log ..."));
 				pocbuff[0] = 0;
-				GetPrevHTML(serverIP, serverPort, pocbuff);
-				if (pocbuff == NULL || strlen(pocbuff) == 0)
+				GetHTMLFromServer(serverIP, serverPort, TEXT("prev.html"), prevpocbuff);
+				GetHTMLFromServer(serverIP, serverPort, TEXT("current.html"), pocbuff);
+				if (pocbuff == NULL || strlen(pocbuff) == 0 ||
+					prevpocbuff == NULL || strlen(prevpocbuff) == 0)
 				{
-					glogger.error(TEXT("can not get POC"));
-					break;
+					glogger.warning(TEXT("can not get POC"));
 				}
-
-                // 补全文件名
-                htmlPath = htmlPath + to_tstring(ct) + TEXT(".html");
-                logPath = htmlPath + TEXT(".log");
-
-                // 写入html文件
-				if (mode == TEXT("client"))
-					SendFile(serverIP, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));
-                FILE* htmlFile;
-                _tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
-                if (htmlFile == NULL)
-                {
-                    glogger.error(TEXT("can not create html file"));
-					htmlPath = outPath + TEXT("unknown\\");
-					_tfopen_s(&htmlFile, htmlPath.c_str(), TEXT("w"));
-					if(htmlFile == NULL)
-						break;
-                }
-				fwrite(pocbuff, 1, strlen(pocbuff), htmlFile);
-				fclose(htmlFile);
 				
 				// log文件                
 				logbuff[0] = 0;
@@ -540,7 +522,6 @@ int _tmain(int argc, TCHAR** argv)
 					strcat(logbuff, pbuff);
 				}
 
-                // *** stack tracing ***
                 strcat(logbuff, "\n\n*** stack tracing ***\n");
                 WriteFile(inputPipeW, "kb\n", 3, &nwrite, NULL);
                 while (GetDebugInfo(outputPipeR, pbuff, buffsize) > 0)
@@ -548,29 +529,33 @@ int _tmain(int argc, TCHAR** argv)
 					strcat(logbuff, pbuff);
                 }
 
-                // *** module info ***
                 strcat(logbuff, "\n\n*** module info ***\n");
                 sCommandLine = TEXT("lmDvm ");
-                sCommandLine.append(module);
+                sCommandLine.append(crashpos.substr(0, crashpos.find_first_of('!'))); // mshtml!xxx__xxx+0x1234
                 sCommandLine.append(TEXT("\n"));
-                WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+                WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), 
+					(uint32_t)sCommandLine.size(), &nwrite, NULL);
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
 				{
 					strcat(logbuff, pbuff);					
 				}
 
-				// 写入log文件
+				// 生成时间戳
+				time_t ct = time(NULL);
+
+				// 写入文件
+				if (pocbuff) LogFile(outPath, crashpos, TEXT(".html"), pocbuff, strlen(pocbuff), ct);
+				if (logbuff) LogFile(outPath, crashpos, TEXT(".log"), logbuff, strlen(logbuff), ct);
+				if (prevpocbuff) LogFile(outPath, crashpos, TEXT("_prev.html"), prevpocbuff, strlen(prevpocbuff), ct);
+
+				// 发送至服务端
 				if (mode == TEXT("client"))
-					SendFile(serverIP, 12220, ct, crashpos, 'L', logbuff, (int)strlen(logbuff));
-				FILE* logFile;
-				_tfopen_s(&logFile, logPath.c_str(), TEXT("w"));
-				if (logFile == NULL)
-				{
-					glogger.error(TEXT("can not create log file"));
-					break;
+				{					
+					if (pocbuff) SendFile(serverIP, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));
+					if (logbuff) SendFile(serverIP, 12220, ct, crashpos, 'L', logbuff, (int)strlen(logbuff));
+					if (prevpocbuff) SendFile(serverIP, 12220, ct, crashpos, 'P', pocbuff, (int)strlen(prevpocbuff));
 				}
-				fwrite(logbuff, 1, strlen(logbuff), logFile);
-				fclose(logFile);
+
                 break;
             }
 
@@ -917,7 +902,7 @@ void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int ma
     _findclose(hh);
 }
 
-uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff)
+uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring& name, char* buff)
 {
     // Initialize Winsock
     WSADATA wsaData;
@@ -953,10 +938,14 @@ uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff)
     }
 
     // 发送请求
-    char* sendbuff = "GET /prev.html HTTP/1.1\r\nAccept: */*\r\nAccept-Encoding: gzip, deflate\r\nUser-Agent: Mozilla/5.0\r\nConnection: Keep-Alive\r\n\r\n";
-    ret = send(sock, sendbuff, (int)strlen(sendbuff), 0);
-    if (ret != strlen(sendbuff))
+    string sendbuff = "GET /" + gcommon::TStringToString(name) + 
+		" HTTP/1.1\r\nAccept: */*\r\nAccept-Encoding: gzip, deflate\r\nUser-Agent: Mozilla/5.0\r\nConnection: Keep-Alive\r\n\r\n";
+    ret = send(sock, sendbuff.c_str(), sendbuff.size(), 0);
+    if (ret != sendbuff.size())
     {
+		glogger.error(TEXT("send failed with error: %d"), WSAGetLastError());
+		closesocket(sock);
+		WSACleanup();
         return 0;
     }
 
@@ -965,6 +954,8 @@ uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff)
     if (ret > 0)
     {
         buff[ret] = 0;
+		closesocket(sock);
+		WSACleanup();
         return ret;
     }
 
@@ -976,6 +967,9 @@ uint32_t GetPrevHTML(tstring serverip, uint16_t port, char* buff)
 uint32_t SendFile(tstring serverip, uint16_t port, 
 	time_t time, const tstring & crashpos, byte type, char * data, int datalen)
 {
+	if (data == NULL || datalen == 0)
+		return 0;
+
 	// Initialize Winsock
 	WSADATA wsaData;
 	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -1029,6 +1023,34 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 		return 0;
 	}
 	return ret;
+}
+
+uint32_t LogFile(const tstring &outpath, const tstring &crashpos,
+	const tstring &endstr, char* data, int datalen, time_t ct)
+{
+	if (data == NULL || datalen == 0)
+		return 0;
+
+	tstring filepath = outpath + crashpos + TEXT("\\") + to_tstring(ct) + endstr;
+	FILE* htmlFile;
+	_tfopen_s(&htmlFile, filepath.c_str(), TEXT("w"));
+	if (htmlFile == NULL)
+	{
+		glogger.warning(TEXT("can not create html file: ") + crashpos + TEXT("\\") + to_tstring(ct) + endstr);
+		filepath = outpath + TEXT("unknown\\") + to_tstring(ct) + endstr;
+		_tfopen_s(&htmlFile, filepath.c_str(), TEXT("w"));
+		if (htmlFile == NULL)
+		{
+			glogger.error(TEXT("can not create html file: unknown\\") + to_tstring(ct) + endstr);
+			return 0;
+		}
+	}
+	if (htmlFile)
+	{
+		fwrite(data, 1, datalen, htmlFile);
+		fclose(htmlFile);
+	}
+	return 0;
 }
 
 bool IsWow64()

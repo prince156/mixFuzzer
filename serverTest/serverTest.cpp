@@ -20,14 +20,14 @@ int main(int argc, char** argv)
         ip = argv[1];
         port = atoi(argv[2]);
     }
-    printf("target: %s:%d\n",ip,port);
+    printf("[##] target: %s:%d\n",ip,port);
 
     // Initialize Winsock
     WSADATA wsaData;
     int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (ret != NO_ERROR)
     {
-        printf(("WSAStartup failed with error: %d\n"), WSAGetLastError());
+        printf(("[##] WSAStartup failed with error: %d\n"), WSAGetLastError());
         return false;
     }    
 
@@ -38,11 +38,12 @@ int main(int argc, char** argv)
     saServer.sin_addr.S_un.S_addr = gcommon::inet_ttol(ip);    
 
     int count = 0;
-    printf("## test start\n");
+    printf("[##] test start, wait about 10s \n...\n");
 
-    WORD dsec, dmsec;
     time_t dt = time(NULL);
-    SYSTEMTIME tt,tt2;
+	time_t dt_end;
+	SYSTEMTIME tt, tt2;
+	ULARGE_INTEGER ft, ft2;
     GetSystemTime(&tt);
     while(true)
     { 
@@ -50,7 +51,7 @@ int main(int argc, char** argv)
         SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sock == INVALID_SOCKET)
         {
-            printf(("socket failed with error: %d\n"), WSAGetLastError());
+            printf(("[##] socket failed with error: %d\n"), WSAGetLastError());
             WSACleanup();
             return 0;
         }
@@ -58,7 +59,7 @@ int main(int argc, char** argv)
         ret = connect(sock, (struct sockaddr *)&saServer, sizeof(saServer));
         if (ret == SOCKET_ERROR)
         {
-            printf(("connect failed with error: %d\n"), WSAGetLastError());
+            printf(("[##] connect failed with error: %d\n"), WSAGetLastError());
             closesocket(sock);
             WSACleanup();
             return 0;
@@ -69,7 +70,7 @@ int main(int argc, char** argv)
         ret = send(sock, sendbuff, strlen(sendbuff), 0);
         if (ret == SOCKET_ERROR || ret != strlen(sendbuff))
         {
-            printf(("send failed with error: %d\n"), WSAGetLastError());
+            printf(("[##] send failed with error: %d\n"), WSAGetLastError());
             break;
         }
 
@@ -78,7 +79,7 @@ int main(int argc, char** argv)
             ret = recv(sock, buff, MAX_SENDBUFF_SIZE, 0);
             if (ret == SOCKET_ERROR)
             {
-                printf(("recv failed with error: %d\n"), WSAGetLastError());                
+                printf(("[##] recv failed with error: %d\n"), WSAGetLastError());                
             }
         } while (ret == 0);
 
@@ -86,30 +87,20 @@ int main(int argc, char** argv)
         closesocket(sock);
         
         count++;
-        if (time(NULL) - dt > 10)
+		dt_end = time(NULL);
+        if (dt_end - dt > 10)
         {
-            printf("## test end\n");
+            printf("[##] test end\n");
             break;
         }
     }
     GetSystemTime(&tt2);
-    if (tt2.wSecond <= tt.wSecond)
-    {
-        dsec = 0;
-        dmsec = 0;
-    }
-    else if (tt2.wMilliseconds < tt.wMilliseconds)
-    {
-        dsec = tt2.wSecond - tt.wSecond - 1;
-        dmsec = tt2.wSecond + 1000 - tt.wMilliseconds;
-    }
-    else
-    {
-        dsec = tt2.wSecond - tt.wSecond;
-        dmsec = tt2.wMilliseconds - tt.wMilliseconds;
-    }
-    printf("time used %d.%d sec for %d connections\n", dsec, dmsec, count);
+	SystemTimeToFileTime(&tt, (FILETIME*)&ft);
+	SystemTimeToFileTime(&tt2, (FILETIME*)&ft2);
+	unsigned long long ms = (ft2.QuadPart - ft.QuadPart)/10000; // 1ms == 1000000ns, FILETIME use 100ns
 
+	printf("[##] rate: %d c/s\n", count * 1000 / ms);
+	printf("[press any key to exit ...]");
     exit(_getch());
 }
 

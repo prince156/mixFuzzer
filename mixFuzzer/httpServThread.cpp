@@ -12,7 +12,7 @@ HttpServThread::HttpServThread(PHTTPSERV_THREAD_PARA para)
 {
 	m_glogger.setHeader(TEXT("Serv"));
 	m_para = para;    
-    m_prevHtmls.clear();
+	m_clients.clear();
 	InitSocket();
 	InitResources();
 }
@@ -29,6 +29,7 @@ typedef struct _sock_thread_para
     PHTTPSERV_THREAD_PARA para;
     vector<RESOURCE> *resources;
     char* prevHtml;
+	char* currentHtml;
 }SOCK_THREAD_PARA,*PSOCK_THREAD_PARA;
 
 const char* m_htmlHead = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: keep-alive\r\nServer: mixfuzzer\r\n\r\n";
@@ -101,6 +102,19 @@ DWORD WINAPI SocketThread(PVOID para)
             dataLen = strlen(sendData);
         }
     }
+	else if (strstr(m_requestUrl, "current.html") != NULL)
+	{
+		if (pPara->currentHtml != NULL && strlen(pPara->currentHtml) > 0)
+		{
+			sendData = pPara->currentHtml;
+			dataLen = strlen(sendData);
+		}
+		else
+		{
+			sendData = m_errorpage;
+			dataLen = strlen(sendData);
+		}
+	}
     else if (strlen(m_requestUrl) != 1)// "/"
     {
         
@@ -155,10 +169,19 @@ DWORD WINAPI SocketThread(PVOID para)
     send(pPara->sock, m_sendBuff, (int)(headLen + dataLen), 0);
 
     // 保存html
-	if (pPara->prevHtml)
+	if (pPara->prevHtml && pPara->currentHtml)
 	{
-		memcpy(pPara->prevHtml, m_sendBuff + headLen, dataLen);
-		pPara->prevHtml[dataLen] = 0;
+		int currentSize = strlen(pPara->currentHtml);
+		if (currentSize > 0)
+		{
+			memcpy(pPara->prevHtml, pPara->currentHtml, currentSize);
+			pPara->prevHtml[currentSize] = 0;
+		}
+	}
+	if (pPara->currentHtml)
+	{
+		memcpy(pPara->currentHtml, m_sendBuff + headLen, dataLen);
+		pPara->currentHtml[dataLen] = 0;
 	}
 
     _safe_exit:
@@ -173,22 +196,25 @@ DWORD WINAPI SocketThread(PVOID para)
 void HttpServThread::ThreadMain()
 {
 	// 判断client是否存活
-	for (auto actTime = m_clientsActive.begin(); actTime != m_clientsActive.end();)
+	for (auto client = m_clients.begin(); client != m_clients.end();)
 	{
-		if (time(NULL) - (*actTime).second > 300) // 超过300s则认为client已经失效
+		if (time(NULL) - (*client).second.activeTime > 300) // 超过300s则认为client已经失效
 		{
-			tstring remoteIP = inet_ltot((*actTime).first);
+			tstring remoteIP = inet_ltot((*client).first);
 			glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
 			glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
 			glogger.screen(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
 			glogger.logfile(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
 			glogger.setDefaultColor();
 
-			m_prevHtmls.erase((*actTime).first);
-			m_clientsActive.erase(actTime++);
+			if ((*client).second.prevHtml)
+				delete[] (char*)(*client).second.prevHtml;
+			if ((*client).second.currentHtml)
+				delete[] (char*)(*client).second.currentHtml;
+			m_clients.erase(client++);
 		}
 		else
-			actTime++;
+			client++;
 	}
 
     // 等待客户端建立连接
@@ -205,18 +231,23 @@ void HttpServThread::ThreadMain()
 
     // 打印客户端信息
     char* prevHtml = NULL;
-    if (m_prevHtmls.find(inAddr.sin_addr.S_un.S_addr) == m_prevHtmls.end())
+	char* currentHtml = NULL;
+    if (m_clients.find(inAddr.sin_addr.S_un.S_addr) == m_clients.end())
     {
         m_glogger.info(TEXT("new client: %s"), gcommon::inet_ltot(inAddr.sin_addr.S_un.S_addr));
         prevHtml = new char[MAX_SENDBUFF_SIZE];
         prevHtml[0] = 0;
-        m_prevHtmls.insert_or_assign(inAddr.sin_addr.S_un.S_addr, (uint64_t)prevHtml);
-		m_clientsActive.insert_or_assign(inAddr.sin_addr.S_un.S_addr, time(NULL));
+		currentHtml = new char[MAX_SENDBUFF_SIZE];
+		currentHtml[0] = 0;
+		m_clients.insert_or_assign(inAddr.sin_addr.S_un.S_addr,
+			CLIENT{ (uint64_t)currentHtml , (uint64_t)prevHtml, time(NULL) });
     }
 	else
 	{
-		prevHtml = (char*)m_prevHtmls.at(inAddr.sin_addr.S_un.S_addr);
-		m_clientsActive.insert_or_assign(inAddr.sin_addr.S_un.S_addr, time(NULL));
+		prevHtml = (char*)m_clients.at(inAddr.sin_addr.S_un.S_addr).prevHtml;
+		currentHtml = (char*)m_clients.at(inAddr.sin_addr.S_un.S_addr).currentHtml;		
+		m_clients.insert_or_assign(inAddr.sin_addr.S_un.S_addr, 
+			CLIENT{ (uint64_t)currentHtml , (uint64_t)prevHtml, time(NULL) });
 	}
 
     // 启动处理线程
@@ -226,6 +257,7 @@ void HttpServThread::ThreadMain()
     pPara->para = m_para;
     pPara->resources = &m_resources;
 	pPara->prevHtml = prevHtml;
+	pPara->currentHtml = currentHtml;
     DWORD id;
     HANDLE h = CreateThread(NULL, 0, SocketThread, (PVOID)(pPara), 0, &id);
     if(h) CloseHandle(h);		

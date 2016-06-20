@@ -26,7 +26,7 @@ HtmlGenThread::~HtmlGenThread()
 void HtmlGenThread::ThreadMain()
 {
 	htmlLines = 0;
-	m_ids = { "id_0","id_1", "id_2", "id_3", "id_4", "id_5", "id_6", "id_7", "id_8" };
+	m_ids = m_type_values["id"];
 	m_funcNames = { "fuzz0", "fuzz1", "fuzz2" };
 	m_htmlTempl[0] = 0;
 	int tr = random(0, (uint32_t)m_para->htmlTempls.size());
@@ -81,6 +81,7 @@ void HtmlGenThread::Init()
 	InitTagProperties("dic\\attributes_domsvg\\", "attributes-*.txt", m_svg_props);
 	if (m_svg_props.empty())
 		m_glogger.warning(TEXT("load dictionary [attributes_domsvg] error"));
+	InitTagProperties("dic\\attributes_javascript\\", "attributes-*.txt", m_svg_props);
 	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_svg_props);
 	InitTagProperties("dic\\attributes_htmlsvg\\", "attributes-*.txt", m_svgtag_props);
 	if (m_svgtag_props.empty())
@@ -90,6 +91,7 @@ void HtmlGenThread::Init()
 	InitTagProperties("dic\\attributes_dom2html5\\", "attributes-*.txt", m_dom_props);
 	if (m_dom_props.empty())
 		m_glogger.warning(TEXT("load dictionary [attributes_dom2html5] error"));
+	InitTagProperties("dic\\attributes_javascript\\", "attributes-*.txt", m_dom_props);
 	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_dom_props);
 
 	// dic for HTML
@@ -668,7 +670,6 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 			{
 				if (tmp[i + 2] >= '0' && tmp[i + 2] <= '9')
 				{
-					m_ids.push_back("svg_0");
 					for (byte j = '0'; j < tmp[i + 2]; j++)
 					{
 						string line = SVG_GenHtmlLine(htmlLines++);
@@ -1194,7 +1195,9 @@ string HtmlGenThread::GetRandomObject(const string & objType, const string dft)
 	case 21:
 		return "document.body";
 	case 22:
-		return "document.all[" + to_string(random(0, m_ids.size())) + "]";
+		return "document.all[" + to_string(random(0, 30)) + "]";
+	case 23:
+		return "new Array(10)";
 	default:
 		return GetRandomItem(m_ids, dft);
 	}

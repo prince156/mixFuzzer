@@ -25,6 +25,13 @@ typedef struct _resource
 	char* data;
 }RESOURCE;
 
+typedef struct _client
+{
+	uint64_t currentHtml;
+	uint64_t prevHtml;
+	time_t activeTime;
+}CLIENT,*PCLIENT;
+
 class HttpServThread: public GThread
 {
 public:
@@ -36,8 +43,7 @@ private:
 	PHTTPSERV_THREAD_PARA m_para;
 	SOCKET m_sock;	
 	vector<RESOURCE> m_resources;
-    map<DWORD, uint64_t> m_prevHtmls;
-	map<DWORD, time_t> m_clientsActive;
+	map<DWORD, CLIENT> m_clients;
 
 private:
 	void ThreadMain();
