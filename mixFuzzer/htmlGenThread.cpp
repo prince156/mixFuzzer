@@ -65,6 +65,13 @@ void HtmlGenThread::Init()
 	ReadDic("dic\\commands.txt", m_commands);
 	if (m_commands.empty())
 		m_glogger.warning(TEXT("load dictionary [commands] error"));
+	ReadDic("dic\\objects.txt", m_objects);
+	if (m_objects.empty())
+		m_glogger.warning(TEXT("load dictionary [objects] error"));
+	ReadDic("dic\\jslines.txt", m_jslines);
+	if (m_jslines.empty())
+		m_glogger.warning(TEXT("load dictionary [jslines] error"));
+
 
 	for each (auto tag_dom in m_htmltag_dom)
 	{
@@ -725,6 +732,38 @@ void HtmlGenThread::GenerateFromVector(vector<string>& strs, char * dst, uint32_
 	}
 }
 
+string HtmlGenThread::GenFromDicType(const string & type)
+{
+	if (!type.empty())
+	{
+		if (type == "obj")
+			return GetRandomObject("");
+		else if (type == "id")
+			return GetRandomItem(m_ids, "id_0");
+		else if (type == "rand")
+			return to_string(random(0, 0xfffff));
+		else if (type == "func")
+			return GetRandomItem(m_funcNames, "fuzz0");
+		else if (type == "htmltag")
+			return GetRandomItem(m_htmltags, "body");
+		else if (type == "svgtag")
+			return GetRandomItem(m_svgtags, "svg");
+		else if (type == "newid")
+		{			
+			m_ids.push_back("id_" + to_string(m_ids.size()));
+			return "id_" + to_string(m_ids.size() - 1);
+		}
+		else if (type == "cmd")
+			return GenJsLine_ExecCommand(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3));
+		else if (type == "prop")
+			return GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3));
+		else if (type == "evt")
+			return GetRandomItem(m_evtfuncs, "onchange");
+		else
+			return GetRandomItem(m_type_values[type], "null");
+	}
+}
+
 string HtmlGenThread::GenTagAttrExp(map<string, vector<PROPERTY>>& tag_props, const string &tag)
 {
 	if (tag_props[tag].size() == 0)
@@ -788,91 +827,42 @@ string HtmlGenThread::GenJsFunction(const string &name)
 
 string HtmlGenThread::GenJsLine()
 {
-	string prop_right;
-	string tmp, tmp2, tmp3;
-	uint32_t sw = random(0, 15);
-	switch (sw)
+	string line = GetRandomItem(m_jslines, "id_0");
+	string newline;
+	string type;
+	for (auto i = line.begin(); i < line.end(); i++)
 	{
-	case 0: // window对象属性赋值
-		return "try{var tmp = window." +
-			GenJsLine_Property(m_dom_props, "Window", random(0, 5)) +
-			"}catch(e){}";
-	case 1:
-		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
-			GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 5)) +
-			"}catch(e){}";
-	case 2:
-		return "try{var tmp = document." +
-			GenJsLine_Property(m_dom_props, "Document", random(0, 5))
-			+ "}catch(e){}";
-	case 3:
-		tmp = GetRandomItem(m_htmltags, "body");
-		return "try{var els=document.getElementsByTagName(\"" +
-			tmp + "\"); " +
-			"if(els.length>0)var tmp = els[" + to_string(random(0, 10)) + "%els.length]." +
-			GenJsLine_Property(m_dom_props, m_htmltag_dom[tmp], random(0, 5)) +
-			"}catch(e){}";
-	case 4:
-		return "try{var tmp = window." +
-			GenJsLine_ExecCommand(m_dom_props, "Window", random(0, 3)) +
-			"}catch(e){}";
-	case 5:
-		return "try{var tmp = " + GetRandomItem(m_ids, "id_0") + "." +
-			GenJsLine_ExecCommand(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3)) +
-			"}catch(e){}";
-	case 6:
-		return "try{var tmp = document." +
-			GenJsLine_ExecCommand(m_dom_props, "Document", random(0, 3)) +
-			"}catch(e){}";
-	case 7:
-		tmp = GetRandomItem(m_htmltags, "body");
-		return "try{var els=document.getElementsByTagName(\"" +
-			tmp + "\"); " +
-			"if(els.length>0)var tmp = els[" + to_string(random(0, 10)) + "%els.length]." +
-			GenJsLine_ExecCommand(m_dom_props, m_htmltag_dom[tmp], random(0, 3)) +
-			"}catch(e){}";
-	case 8:
-		return "try{var ee = document.createElement(\'" +
-			GetRandomItem(m_htmltags, "body") + "\');" +
-			"ee.id = \"id_" + to_string(m_ids.size() - 1) + "\";" +
-			GetRandomItem(m_ids, "id_0") + ".appendChild(ee);" +
-			"}catch(e){}";
-	case 9:
-		tmp = GetRandomItem(m_ids, "id_0");
-		return "try{var ee = document.createElement(\'" +
-			GetRandomItem(m_htmltags) + "\');" +
-			tmp + ".replaceChild(" + tmp + ".firstChild,ee);" + "}catch(e){}";
-	case 10:
-		tmp = GetRandomItem(m_htmltags, "body");
-		return "try{var ee = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
-			"ee.__proto__ = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
-			"var tmp = ee." + GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3)) +
-			";" + "}catch(e){}";
-	case 11:
-		return "try{" + GetRandomObject("HTMLElement") + ".attachEvent(\"" +
-			GetRandomItem(m_evtfuncs, "onchange") + "\"," +
-			GetRandomItem(m_funcNames, "fuzz0") +
-			");}catch(e){}";
-	case 12:
-		return "try{" + GetRandomObject("HTMLElement") + ".addEventListener(\"" +
-			GetRandomItem(m_evts, "change") + "\"," +
-			GetRandomItem(m_funcNames, "fuzz0") + "," + TrueOrFalse() +
-			");}catch(e){}";
-	case 13: // 通过tag创建element
-		m_ids.push_back("id_" + to_string(m_ids.size()));
-		return "try{var ee = document.createElement(\'" + GetRandomItem(m_htmltags, "div") + "\');" +
-			"ee.id = \"id_" + to_string(m_ids.size() - 1) + "\";" +
-			"document.body.appendChild(ee);" + "}catch(e){}";
-	case 14:
-		tmp = GetRandomItem(m_htmltags, "body");
-		return "try{var ee = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
-			"ee.constructor = " + GetRandomObject(m_htmltag_dom[tmp]) + ";" +
-			"var tmp = ee." + GenJsLine_Property(m_dom_props, GetRandomItem(m_htmldoms, "HTMLElement"), random(0, 3)) +
-			";" + "}catch(e){}";
-	default:
-		break;
+		if ((*i) == '%')
+		{
+			do
+			{
+				if ((i + 1) == line.end())
+					break;
+
+				if ((*(i + 1) >= '0' && *(i + 1) <= '9') ||
+					(*(i + 1) >= 'a' && *(i + 1) <= 'z') ||
+					(*(i + 1) >= 'A' && *(i + 1) <= 'Z'))
+				{
+					type += *(++i);
+				}
+				else
+					break;
+			} while (true);
+
+			if (!type.empty())
+			{
+				newline += GenFromDicType(type);
+				type.clear();
+			}
+			else
+			{
+				newline += '%';
+			}
+			continue;
+		}
+		newline += *i;
 	}
-	return string();
+	return newline;
 }
 
 string HtmlGenThread::GenJsLine_Property(const map<string, vector<PROPERTY>>& obj_props,
@@ -890,22 +880,22 @@ string HtmlGenThread::GenJsLine_Property(const map<string, vector<PROPERTY>>& ob
 	{
 		if (props[rd].ret.empty())
 		{
-			return props[rd].name + ";";
+			return props[rd].name;
 		}
 		if (props[rd].type == "function")
 		{
-			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")";
 		}
 		else
 		{
-			return props[rd].name + "=" + GetRandomValue(props[rd].values) + ";";
+			return props[rd].name + "=" + GetRandomValue(props[rd].values);
 		}
 	}
 	else
 	{
 		if (props[rd].ret.empty())
 		{
-			return props[rd].name + ";";
+			return props[rd].name;
 		}
 		else if (props[rd].type == "function")
 		{
@@ -916,7 +906,7 @@ string HtmlGenThread::GenJsLine_Property(const map<string, vector<PROPERTY>>& ob
 				if (!right.empty())
 					return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")." + right;
 			}
-			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")";
 		}
 		else if (props[rd].ret.front() == '$')
 		{
@@ -924,15 +914,15 @@ string HtmlGenThread::GenJsLine_Property(const map<string, vector<PROPERTY>>& ob
 				obj_props, props[rd].ret.substr(1, string::npos), --deep, dft); // 递归	
 			if (!right.empty())
 				return props[rd].name + "." + right;
-			return props[rd].name + ";";
+			return props[rd].name;
 		}
 		else
 		{
-			return props[rd].name + "=" + GetRandomValue(props[rd].values) + ";";
+			return props[rd].name + "=" + GetRandomValue(props[rd].values);
 		}
 
 	}
-	return props[rd].name + ";";
+	return props[rd].name;
 }
 
 string HtmlGenThread::GenJsLine_ExecCommand(const map<string, vector<PROPERTY>>& obj_props,
@@ -953,30 +943,30 @@ string HtmlGenThread::GenJsLine_ExecCommand(const map<string, vector<PROPERTY>>&
 		uint32_t cd = random(0, (uint32_t)m_commands.size());
 		if (props[rd].ret.empty())
 		{
-			return props[rd].name + ";";
+			return props[rd].name;
 		}
 		else if (props[rd].type == "function")
 		{
 			if (props[rd].ret.front() == '$')
 			{
 				return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")" +
-					".execCommand(" + m_commands[cd] + ");";
+					".execCommand(" + m_commands[cd] + ")";
 			}
 			else
 			{
-				return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+				return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")";
 			}
 		}
 		else if (props[rd].ret.front() == '$')
 		{
-			return props[rd].name + ".execCommand(" + m_commands[cd] + ");";
+			return props[rd].name + ".execCommand(" + m_commands[cd] + ")";
 		}
 	}
 	else
 	{
 		if (props[rd].ret.empty())
 		{
-			return props[rd].name + ";";
+			return props[rd].name;
 		}
 		else if (props[rd].type == "function")
 		{
@@ -987,7 +977,7 @@ string HtmlGenThread::GenJsLine_ExecCommand(const map<string, vector<PROPERTY>>&
 				if (!right.empty())
 					return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")." + right;
 			}
-			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ");";
+			return props[rd].name + "(" + GetRandomFuncArgs(props[rd]) + ")";
 		}
 		else if (props[rd].ret.front() == '$')
 		{
@@ -995,10 +985,10 @@ string HtmlGenThread::GenJsLine_ExecCommand(const map<string, vector<PROPERTY>>&
 				obj_props, props[rd].ret.substr(1, string::npos), --deep, dft); // 递归
 			if (!right.empty())
 				return props[rd].name + "." + right;
-			return props[rd].name + ";";
+			return props[rd].name;
 		}
 	}
-	return props[rd].name + ";";
+	return props[rd].name;
 }
 
 string HtmlGenThread::SVG_GenHtmlLine(int id)
@@ -1146,61 +1136,42 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values, const string 
 
 string HtmlGenThread::GetRandomObject(const string & objType, const string dft)
 {
-	uint32_t rd = random(0, 25);
-	string tmp;
-	switch (rd)
+	string object = GetRandomItem(m_objects, "id_0");
+	string newobject;
+	string type;
+	for (auto i = object.begin(); i < object.end(); i++)
 	{
-	case 0:
-		return GetRandomItem(m_ids, dft);
-	case 1:
-		return "document.createElement(\"" + GetRandomItem(m_htmltags) + "\")";
-	case 2:
-		return "document.createComment(" + GetRandomItem(m_type_values["str"]) + ")";
-	case 3:
-		return GetRandomItem(m_ids, "id_0") + ".firstChild";
-	case 4:
-		return GetRandomItem(m_ids, "id_0") + ".cloneNode(true)";
-	case 5:
-		return GetRandomItem(m_ids, "id_0") + ".attributes";
-	case 6:
-		return GetRandomItem(m_ids, "id_0") + ".parentNode";
-	case 7:
-		return "document.createTextNode(" + GetRandomItem(m_type_values["str"], "mixfuzz") + ")";
-	case 8:
-		return "document.createDocumentFragment()";
-	case 9:
-		return "document.documentElement";
-	case 10:
-		return "document.createCDATASection(" + GetRandomItem(m_type_values["str"], "mixfuzz") + ")";
-	case 11:
-		return "document.createProcessingInstruction(" + GetRandomItem(m_type_values["str"], "mixfuzz") + ")";
-	case 12:
-		return "document.createAttribute(" + GetRandomItem(m_type_values["str"], "mixfuzz") + ")";
-	case 13:
-		return "document.createEntityReference(" + GetRandomItem(m_type_values["str"], "mixfuzz") + ")";
-	case 14:
-		return "document.getElementsByTagName(\"" + GetRandomItem(m_htmltags, "body") + "\")";
-	case 15:
-		return "document.getElementsByTagName(\"" + GetRandomItem(m_htmltags, "body") + "\")[0]";
-	case 16:
-		return "document.getElementById(\"" + GetRandomItem(m_ids, "id_0") + "\")";
-	case 17:
-		return "document.createElementNS(\"" + GetRandomItem(m_htmltags, "body") + "\")";
-	case 18:
-		return "document.createAttributeNS(" + GetRandomItem(m_type_values["str"], "mixfuzz") + ")";
-	case 19:
-		return "document";
-	case 20:
-		return "window";
-	case 21:
-		return "document.body";
-	case 22:
-		return "document.all[" + to_string(random(0, 30)) + "]";
-	case 23:
-		return "new Array(10)";
-	default:
-		return GetRandomItem(m_ids, dft);
+		if ((*i) == '%')
+		{
+			do
+			{				
+				if ((i + 1) == object.end())
+					break;
+				
+				if ((*(i + 1) >= '0' && *(i + 1) <= '9') ||
+					(*(i + 1) >= 'a' && *(i + 1) <= 'z') ||
+					(*(i + 1) >= 'A' && *(i + 1) <= 'Z'))
+				{
+					type += *(++i);
+				}
+				else
+					break;
+			} while (true);
+
+			if (!type.empty())
+			{
+				newobject += GenFromDicType(type);
+				type.clear();
+			}
+			else
+			{
+				newobject += '%';				
+			}
+			continue;
+		}
+		newobject += *i;
 	}
+	return newobject;
 }
 
 /********************************************************************

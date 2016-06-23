@@ -54,6 +54,8 @@ private:
     vector<string> m_commands;
 	vector<string> m_funcNames; // e.g. fuzz0  fuzz1 ...
 	vector<string> m_ids; // e.g. id_0  id_1 ...
+	vector<string> m_objects;
+	vector<string> m_jslines;
 
 	map<string, string> m_htmltag_dom;// <tagname, DOMInterface>
 	map<string, string> m_svgtag_dom;// <tagname, DOMInterface>
@@ -95,6 +97,7 @@ private:
 	string SVG_GenJsFunction(const string &name);
 	string SVG_GenJsLine();
 
+	string GenFromDicType(const string& type);
 	string GenTagAttrExp(map<string, vector<PROPERTY>>& tag_props,const string &tag);
 	string GetRandomItem(const vector<string>& items, const string dft="");
 	string GetRandomValue(const vector<string>& values, const string dft = "null");
