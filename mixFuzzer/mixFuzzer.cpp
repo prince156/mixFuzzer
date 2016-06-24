@@ -309,7 +309,7 @@ int _tmain(int argc, TCHAR** argv)
         si_edge.dwFlags = STARTF_USESHOWWINDOW;
         si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
         TCHAR cmdline[1024];
-        _stprintf_s(cmdline, TEXT("%s http://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
+        _stprintf_s(cmdline, TEXT("%shttp://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
         BOOL bRet = CreateProcess(NULL, cmdline,
             NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
 		if (pi_edge.hProcess) 

@@ -221,3 +221,6 @@ ModelManifest.xml
 *.7z
 *.html
 /Output/template-example.txt
+/Output/.DS_Store
+/Output/fuzzsafari.zip
+*.zip
