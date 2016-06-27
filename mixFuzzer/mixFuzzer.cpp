@@ -237,6 +237,11 @@ int _tmain(int argc, TCHAR** argv)
 		sCommandLine = gflags_exe + TEXT(" /p /enable ") + webProcName + TEXT(" /full >nul");
 		_tsystem(sCommandLine.c_str());
 	}
+	else
+	{
+		sCommandLine = gflags_exe + TEXT(" /p /disable ") + webProcName + TEXT(" /full >nul");
+		_tsystem(sCommandLine.c_str());
+	}
 
 
     if (fuzztarget == TEXT("edge"))
@@ -246,7 +251,15 @@ int _tmain(int argc, TCHAR** argv)
     }
 	else
 	{
-		appPath = TEXT("\"") + appPath + TEXT("\"");
+		tstring startop;
+		if (appPath.rfind(TEXT(".exe ")) != tstring::npos)
+		{
+			startop = appPath.substr(appPath.rfind(TEXT(".exe ")) + 5);
+			appPath = appPath.substr(0, appPath.rfind(TEXT(".exe ")) + 4);
+			appPath = TEXT("\"") + appPath + TEXT("\" ") + startop + TEXT(" ");
+		}
+		else
+			appPath = TEXT("\"") + appPath + TEXT("\" ");
 	}
 
     // fuzz循环
@@ -310,6 +323,7 @@ int _tmain(int argc, TCHAR** argv)
         si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
         TCHAR cmdline[1024];
         _stprintf_s(cmdline, TEXT("%shttp://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
+		glogger.debug1(TEXT("CreateProcess: %s"), cmdline);
         BOOL bRet = CreateProcess(NULL, cmdline,
             NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
 		if (pi_edge.hProcess) 
@@ -361,14 +375,24 @@ int _tmain(int argc, TCHAR** argv)
         // attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
         for (size_t i = 1; i < procIDs.size(); i++)
         {
-            glogger.info(TEXT("  -pid:") + to_tstring(procIDs[i]));
-            sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");
+            glogger.info(TEXT("  -pid:") + to_tstring(procIDs[i]));			
+            
+			sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");			
+			glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
             WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
-            WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
-            sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");
-            WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
-            WriteFile(inputPipeW, "~*m\n", 4, &nwrite, NULL);
+			
+			glogger.debug1(TEXT("windbg command: g"));
+			WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);            
+			
+			sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");			
+			glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
+			WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+			
+			glogger.debug1(TEXT("windbg command: ~*m"));
+			WriteFile(inputPipeW, "~*m\n", 4, &nwrite, NULL);
+
             sCommandLine = TEXT(".childdbg1\n");
+			glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
             WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
         }
 
@@ -376,6 +400,7 @@ int _tmain(int argc, TCHAR** argv)
         if (debug_level > 0)
         {
             while (GetDebugInfo(outputPipeR, rbuff, buffsize, 100));
+			glogger.debug1(TEXT("windbg command: |*"));
             WriteFile(inputPipeW, "|*\n", 3, &nwrite, NULL);
             if (GetDebugInfo(outputPipeR, rbuff, buffsize) > 0)
             {
@@ -395,7 +420,7 @@ int _tmain(int argc, TCHAR** argv)
 
         // 设置symbol path		
         sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\";g;\n"); // 同时加入g; 防止后面出现异常
-		glogger.debug1(TEXT("set sympath in gdb: ") + sCommandLine);
+		glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
         WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
         Sleep(100);
 
@@ -458,7 +483,8 @@ int _tmain(int argc, TCHAR** argv)
                 // 进程异常
                 if (CheckC3Ret(pbuff))
                 {
-                    glogger.warning(TEXT("break @ \"ret\", continue"));                   
+                    glogger.warning(TEXT("break @ \"ret\", continue")); 
+					glogger.debug1(TEXT("windbg command: g"));
                     WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
                     pbuff[0] = 0;
                     continue;
@@ -468,6 +494,7 @@ int _tmain(int argc, TCHAR** argv)
                 if (CheckCCInt3(pbuff))
                 {
                     glogger.warning(TEXT("break @ \"int 3\", continue"));
+					glogger.debug1(TEXT("windbg command: g"));
                     WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
                     pbuff[0] = 0;
                     continue;
@@ -516,6 +543,7 @@ int _tmain(int argc, TCHAR** argv)
                 strcat(logbuff, pbuff);
 
 				strcat(logbuff, "\n\n*** crash info ***\n");
+				glogger.debug1(TEXT("windbg command: r"));
                 WriteFile(inputPipeW, "r\n", 2, &nwrite, NULL);
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
 				{
@@ -523,6 +551,7 @@ int _tmain(int argc, TCHAR** argv)
 				}
 
                 strcat(logbuff, "\n\n*** stack tracing ***\n");
+				glogger.debug1(TEXT("windbg command: kb"));
                 WriteFile(inputPipeW, "kb\n", 3, &nwrite, NULL);
                 while (GetDebugInfo(outputPipeR, pbuff, buffsize) > 0)
                 {
@@ -532,7 +561,8 @@ int _tmain(int argc, TCHAR** argv)
                 strcat(logbuff, "\n\n*** module info ***\n");
                 sCommandLine = TEXT("lmDvm ");
                 sCommandLine.append(crashpos.substr(0, crashpos.find_first_of('!'))); // mshtml!xxx__xxx+0x1234
-                sCommandLine.append(TEXT("\n"));
+				glogger.debug1(TEXT("windbg command: ") + sCommandLine);
+				sCommandLine.append(TEXT("\n"));
                 WriteFile(inputPipeW, TStringToString(sCommandLine).c_str(), 
 					(uint32_t)sCommandLine.size(), &nwrite, NULL);
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
@@ -573,6 +603,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
     DWORD nwrite, nread;
     char rbuff[1024 + 1];
 	GetDebugInfo(houtPipeR, rbuff, 1024, 500);
+	glogger.debug1(TEXT("windbg command: u eip L1"));
     WriteFile(hinPipeW, "u eip L1\n", 9, &nwrite, NULL);
     nread = GetDebugInfo(houtPipeR, rbuff, 1024);
     if (nread == 0)
