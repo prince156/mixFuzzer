@@ -59,6 +59,7 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 	char* filedata;
 	int datalen = 0;
 	bool first = true;
+	byte type = '0';
 	FILE* ff = NULL;
 
 	while(1)
@@ -78,6 +79,7 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 				break;
 			}
 
+			type = fp->type;
 			filename = to_tstring(fp->time);
 			if (fp->type == 'H')
 				filename += TEXT(".html");
@@ -90,19 +92,7 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 
 			dirname = gcommon::StringToTString(string(fp->data, fp->dirLen));			
 			filedata = fp->data + fp->dirLen;
-			datalen = recv_size - sizeof(FILEPACK) - fp->dirLen;
-
-			// 信息
-			// 获取崩溃位置作为目录名
-			if (fp->type == 'H')
-			{
-				tstring remoteIP = inet_ltot(pPara->remoteIP);
-				glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
-				glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
-				glogger.screen(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
-				glogger.logfile(TEXT("[") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
-				glogger.setDefaultColor();
-			}			
+			datalen = recv_size - sizeof(FILEPACK) - fp->dirLen;					
 		}
 		else
 		{
@@ -136,6 +126,15 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 	if (ff)fclose(ff);
 	closesocket(pPara->sock);
 	delete[] recvBuff;
+
+	// 显示信息
+	if (type == 'H')
+	{
+		tstring remoteIP = inet_ltot(pPara->remoteIP);
+		glogger.screen(TEXT("   [") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
+		glogger.logfile(TEXT("   [") + remoteIP + TEXT("] ") + dirname + TEXT("\n"));
+	}
+	
 	return 0;
 }
 

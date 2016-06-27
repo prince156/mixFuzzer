@@ -104,6 +104,12 @@ DWORD WINAPI SocketThread(PVOID para)
     }
 	else if (strstr(m_requestUrl, "current.html") != NULL)
 	{
+		tstring remoteIP = inet_ltot(pPara->remoteIP);
+		glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
+		glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
+		glogger.screen(TEXT("[") + remoteIP + TEXT("] find crash, wait for poc ...\n"));
+		glogger.setDefaultColor();
+
 		if (pPara->currentHtml != NULL && strlen(pPara->currentHtml) > 0)
 		{
 			sendData = pPara->currentHtml;
@@ -201,7 +207,7 @@ void HttpServThread::ThreadMain()
 		if (time(NULL) - (*client).second.activeTime > 300) // 超过300s则认为client已经失效
 		{
 			tstring remoteIP = inet_ltot((*client).first);
-			glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
+			glogger.setDefaultColor(gcommon::PRINT_COLOR::DARK_YELLOW);
 			glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
 			glogger.screen(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
 			glogger.logfile(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
