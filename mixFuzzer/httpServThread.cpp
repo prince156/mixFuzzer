@@ -202,9 +202,10 @@ DWORD WINAPI SocketThread(PVOID para)
 void HttpServThread::ThreadMain()
 {
 	// 判断client是否存活
-	for (auto client = m_clients.begin(); client != m_clients.end();)
+	for (auto client = m_clients.begin(); client != m_clients.end(); client++)
 	{
-		if (time(NULL) - (*client).second.activeTime > 300) // 超过300s则认为client已经失效
+		if (time(NULL) - (*client).second.activeTime > 300 &&
+			(*client).second.isDead == false) // 超过300s则认为client已经失效
 		{
 			tstring remoteIP = inet_ltot((*client).first);
 			glogger.setDefaultColor(gcommon::PRINT_COLOR::DARK_YELLOW);
@@ -213,14 +214,8 @@ void HttpServThread::ThreadMain()
 			glogger.logfile(TEXT("client seems dead: ") + remoteIP + TEXT("\n"));
 			glogger.setDefaultColor();
 
-			if ((*client).second.prevHtml)
-				delete[] (char*)(*client).second.prevHtml;
-			if ((*client).second.currentHtml)
-				delete[] (char*)(*client).second.currentHtml;
-			m_clients.erase(client++);
-		}
-		else
-			client++;
+			(*client).second.isDead = true;
+		}		
 	}
 
     // 等待客户端建立连接
@@ -246,14 +241,16 @@ void HttpServThread::ThreadMain()
 		currentHtml = new char[MAX_SENDBUFF_SIZE];
 		currentHtml[0] = 0;
 		m_clients.insert_or_assign(inAddr.sin_addr.S_un.S_addr,
-			CLIENT{ (uint64_t)currentHtml , (uint64_t)prevHtml, time(NULL) });
+			CLIENT{ (uint64_t)currentHtml , (uint64_t)prevHtml, time(NULL), false });
     }
 	else
 	{
+		if(m_clients.at(inAddr.sin_addr.S_un.S_addr).isDead == true)
+			m_glogger.info(TEXT("client alive: %s"), gcommon::inet_ltot(inAddr.sin_addr.S_un.S_addr));
 		prevHtml = (char*)m_clients.at(inAddr.sin_addr.S_un.S_addr).prevHtml;
 		currentHtml = (char*)m_clients.at(inAddr.sin_addr.S_un.S_addr).currentHtml;		
 		m_clients.insert_or_assign(inAddr.sin_addr.S_un.S_addr, 
-			CLIENT{ (uint64_t)currentHtml , (uint64_t)prevHtml, time(NULL) });
+			CLIENT{ (uint64_t)currentHtml , (uint64_t)prevHtml, time(NULL), false });
 	}
 
     // 启动处理线程

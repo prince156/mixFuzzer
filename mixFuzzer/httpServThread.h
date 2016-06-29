@@ -30,6 +30,7 @@ typedef struct _client
 	uint64_t currentHtml;
 	uint64_t prevHtml;
 	time_t activeTime;
+	bool isDead;
 }CLIENT,*PCLIENT;
 
 class HttpServThread: public GThread
