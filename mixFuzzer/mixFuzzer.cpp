@@ -15,10 +15,10 @@
 #include "fileRecvThread.h"
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v1.2")
+#define SOFT_VER TEXT("v1.3")
 #define SOFT_LOGO TEXT(\
 	"===============================================================================\n"\
-	"|                        Wellcome to " SOFT_NAME " " SOFT_VER "                          |\n"\
+	"|                        Wellcome to " SOFT_NAME " " SOFT_VER "                           |\n"\
 	"===============================================================================\n\n")
 
 #define CDB_X86 TEXT("cdb_x86.exe")

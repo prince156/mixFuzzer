@@ -762,6 +762,7 @@ string HtmlGenThread::GenFromDicType(const string & type)
 		else
 			return GetRandomItem(m_type_values[type], "null");
 	}
+	return "";
 }
 
 string HtmlGenThread::GenTagAttrExp(map<string, vector<PROPERTY>>& tag_props, const string &tag)

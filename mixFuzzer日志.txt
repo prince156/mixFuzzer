@@ -21,8 +21,17 @@ fuzz标识说明：
 [ff]: 随机function
 {ff}: 随机function（svg）
 
-[2016-06-18]
+[2016-06-29 v1.3]
+* 增加字典attributes_javascript、jslines、objects
+* 增加记录当前html的前一个样本
+* 增加调试信息
+* 增加对浏览器启动选项的支持
 * 修复client模式下仍尝试加载字典的bug
+* 修复对多字节模式的支持
+* 修复在win10（非1511）中无法打开edge的bug
+* client无响应后将不再删除其信息（保护crash样本不被清空）
+* 调整浏览器启动等待时间的自适应策略
+* 微调服务端crash信息显示
 * 提高fuzz样本生成效率
 
 [2016-06-18 v1.2]
