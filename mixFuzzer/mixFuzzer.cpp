@@ -353,7 +353,7 @@ int _tmain(int argc, TCHAR** argv)
 
         // attach调试器	
         sCommandLine = TEXT("tools\\") + cdb_exe + TEXT(" -o -p ") + to_tstring(procIDs[0]);
-        glogger.info(TEXT("Attach ") + cdb_exe);
+        glogger.info(TEXT("Attach ") + cdb_exe + TEXT(" to ") + webProcName +TEXT(" ..."));
         glogger.info(TEXT("  -pid:") + to_tstring(procIDs[0]));
         STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
         si_cdb.dwFlags |= STARTF_USESTDHANDLES;
@@ -397,24 +397,15 @@ int _tmain(int argc, TCHAR** argv)
         }
 
         // debug信息：|*\n
-        if (debug_level > 0)
+		Sleep(100);
+        if (debug_level > 1)
         {
             while (GetDebugInfo(outputPipeR, rbuff, buffsize, 100));
-			glogger.debug1(TEXT("windbg command: |*"));
+			glogger.debug2(TEXT("windbg command: |*"));
             WriteFile(inputPipeW, "|*\n", 3, &nwrite, NULL);
             if (GetDebugInfo(outputPipeR, rbuff, buffsize) > 0)
             {
-                size_t pos = 0;
-                size_t bufflen = strlen(rbuff);
-                for (size_t i = 0; i < bufflen; i++)
-                {
-                    if (rbuff[i] == '\n')
-                    {
-                        rbuff[i] = 0;
-                        printf("+1 [main] %s\n", rbuff + pos);
-                        pos = i + 1;
-                    }
-                }
+				glogger.debug2(StringToTString(string(rbuff)));
             }
         }
 
@@ -427,9 +418,17 @@ int _tmain(int argc, TCHAR** argv)
         // 监听cdg循环
         glogger.info(TEXT("Fuzzing ..."));
         pbuff[0] = 0;
-        uint32_t idletime = 0;
+		uint32_t idletime = 0;
+		time_t fuzztime = time(NULL);
         while (true)
         {
+			// 判断是否达到fuzz时间上限
+			if (time(NULL) - fuzztime > 600)
+			{
+				glogger.info(TEXT("fuzz timeout (10min), restart fuzz ..."));
+				break;
+			}
+
             // 查看是否存在新的进程
             procIDs_new = GetAllProcessId(webProcName.c_str(), procIDs);
             if (!procIDs_new.empty())
@@ -509,10 +508,7 @@ int _tmain(int argc, TCHAR** argv)
 
                 // 判定为crash 
                 glogger.error(TEXT("!! find crash !!"));				
-                if (debug_level > 0)
-                {
-                    printf("+1 [main] %s\n", pbuff);
-                }				               
+                glogger.debug2(StringToTString(string(pbuff)));				               
 
                 // 获取崩溃位置作为目录名
                 tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
@@ -608,6 +604,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
     nread = GetDebugInfo(houtPipeR, rbuff, 1024);
     if (nread == 0)
         return tstring(TEXT("unknown"));
+	glogger.debug2(StringToTString(string(rbuff)));
 
     size_t i = 0, start = 0;
     for (i = 0; i < strlen(rbuff); i++)
@@ -625,7 +622,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
         return tstring(TEXT("unknown"));
     }
 
-    for (i = start; i < strlen(rbuff); i++)
+    for (i = start; i < strlen(rbuff+start); i++)
     {
 		if (rbuff[i] == '\n' && i > 0)
 		{
@@ -718,8 +715,11 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
             break;
     }
 
-    if (nread == 0)
-        return 0;
+	if (nread == 0)
+	{
+		buff[0] = 0;
+		return 0;
+	}
 
     nread = 0;
     ReadFile(hPipe, buff, size, &nread, NULL);
