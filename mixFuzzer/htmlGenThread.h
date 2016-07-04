@@ -75,10 +75,10 @@ private:
 
 	int ReadDic(const char* dicfile, vector<string>& list);
 	int ReadDic2(const char* dicfile, map<string,string>& tags);
-	int LoadDicFiles(const string& path, map<string, vector<string>>& files);
-	void InitTagProperties(const string &path, const string &name, map<string, vector<PROPERTY>>& tag_funcs);
-	void InitTypeValues(const string &path, const string &name, map<string, vector<string>>& tag_values);
-	void InitRetobjDic();
+	int ReadDicFiles(const string& path, map<string, vector<string>>& files);
+	void ReadTagProperties(const string &path, const string &name, map<string, vector<PROPERTY>>& tag_funcs);
+	void ReadTypeValues(const string &path, const string &name, map<string, vector<string>>& tag_values);
+	void ReadRetobjDic();
 	void HandleInheritation();
 	void GenInheritation(map<string, vector<PROPERTY>> &obj_props, const string& obj); //ตÝน้
 	void GenInheritation(map<string, vector<string>> &type_values, const string& type);//ตÝน้

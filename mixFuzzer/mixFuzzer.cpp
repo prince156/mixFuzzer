@@ -84,6 +84,7 @@ int _tmain(int argc, TCHAR** argv)
     tstring serverIP = TEXT("127.0.0.1");
     tstring fuzztarget = TEXT("");	
 	int pageheap = 1;
+	int killexplorer = 1;
     bool isWow64 = IsWow64();
 
     tstring cdb_exe = isWow64 ? CDB_X64 : CDB_X86;
@@ -139,12 +140,14 @@ int _tmain(int argc, TCHAR** argv)
 	waitTime = minWaitTime = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("1000")).c_str());
     serverPort = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228")).c_str());
     maxPocCount = _ttoi(GetConfigPara(currentDir + configFile, TEXT("MAX_POC_COUNT"), TEXT("10")).c_str());
-    fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
+	killexplorer = _ttoi(GetConfigPara(currentDir + configFile, TEXT("KILL_EXPLORER"), TEXT("10")).c_str());
+	fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
     appPath = GetConfigPara(currentDir + configFile, TEXT("APP_PATH"), appPath);
     symPath = GetConfigPara(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
     outPath = GetConfigPara(currentDir + configFile, TEXT("OUT_PATH"), outPath);
     mode = GetConfigPara(currentDir + configFile, TEXT("MODE"), mode);
     serverIP = GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_IP"), serverIP);
+	
 	glogger.setDebugLevel(debug_level);
     glogger.info(TEXT("symbol path: ") + symPath);
     glogger.info(TEXT(" ouput path: ") + outPath);
@@ -263,6 +266,7 @@ int _tmain(int argc, TCHAR** argv)
 	}
 
     // fuzz—≠ª∑
+	uint32_t fuzzcount = 0;
     DWORD nwrite, nread;
     uint32_t buffsize = 1024;
     char* rbuff = new char[buffsize + 1];
@@ -272,6 +276,7 @@ int _tmain(int argc, TCHAR** argv)
 	char* logbuff = new char[MAX_SENDBUFF_SIZE + 1];
     while (true)
     {
+		fuzzcount++;
         glogger.screen(TEXT("\n\n"));
         glogger.insertCurrentTime();
         glogger.info(TEXT("Start Fuzzing ..."));
@@ -292,12 +297,16 @@ int _tmain(int argc, TCHAR** argv)
             glogger.error(TEXT("Cannot kill cdb, restart fuzz."));
             continue;
         }
-		glogger.debug1(TEXT("kill explorer.exe ..."));
-        if (!TerminateAllProcess(TEXT("explorer.exe")))
-        {
-            //glogger.warning(TEXT("Cannot kill explorer, restart fuzz."));
-            //continue;
-        }
+		if (killexplorer <= fuzzcount)
+		{
+			glogger.debug1(TEXT("kill explorer.exe ..."));
+			if (!TerminateAllProcess(TEXT("explorer.exe")))
+			{
+				//glogger.warning(TEXT("Cannot kill explorer, restart fuzz."));
+				//continue;
+			}
+			fuzzcount = 0;
+		}
 		glogger.debug1(TEXT("kill %s ..."), webProcName.c_str());
 		if (!TerminateAllProcess(webProcName.c_str()))
 		{
