@@ -21,7 +21,12 @@ fuzz标识说明：
 [ff]: 随机function
 {ff}: 随机function（svg）
 
+[2016-07-03]
+* template目录下的字典文件中可以使用%prop等关键字 
+* template目录下可以自定义values字典
+
 [2016-06-29 v1.3]
+* 生成效率：3800/s
 * 增加字典attributes_javascript、jslines、objects
 * 增加记录当前html的前一个样本
 * 增加调试信息

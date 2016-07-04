@@ -41,6 +41,7 @@ public:
 	~HtmlGenThread();
 
 private:
+	static const uint32_t RANDOM_MAX = 0x00ffffff;
 	PHTMLGEN_THREAD_PARA m_para;
 	char* m_htmlTempl;
 
@@ -88,7 +89,7 @@ private:
 	// DOM	
 	string GenHtmlLine(int id);
     string GenJsFunction(const string &name);
-    string GenJsLine();
+    string GenJsLine(const string &templ);
 	string GenJsLine_Property(const map<string, vector<PROPERTY>>& obj_props, const string& obj, int deep, const string dft = "id"); //ตÝน้
 	string GenJsLine_ExecCommand(const map<string, vector<PROPERTY>>& obj_props, const string& obj, int deep, const string dft = "id");//ตÝน้
 

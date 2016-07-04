@@ -72,7 +72,7 @@ void HtmlGenThread::Init()
 	if (m_jslines.empty())
 		m_glogger.warning(TEXT("load dictionary [jslines] error"));
 
-
+	// dic for TAG (svg \ html)
 	for each (auto tag_dom in m_htmltag_dom)
 	{
 		m_htmltags.push_back(tag_dom.first);
@@ -110,12 +110,13 @@ void HtmlGenThread::Init()
 	InitTypeValues("dic\\values\\", "values-*.txt", m_type_values);
 	if (m_tag_props.empty())
 		m_glogger.warning(TEXT("load dictionary [values] error"));
+	// additional values for the template
+	InitTypeValues("template\\", "values-*.txt", m_type_values);
 
-	//InitRetobjDic();
+	//InitRetobjDic(); // 太慢! 暂不使用
 	HandleInheritation(); // 处里继承
 
-
-						  // rand seed
+	// rand seed
 	char* chr = new char[1];
 	srand((int)chr);
 	delete[] chr;
@@ -543,7 +544,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 			}
 			else if (memcmp(tmp + i, "[nr]", 4) == 0)
 			{
-				rd = random(0, 0x00ffffff);
+				rd = random(0, RANDOM_MAX);
 				memcpy_s(dst + dstlen, dstsize - dstlen, to_string(rd).c_str(), to_string(rd).size());
 				dstlen += (uint32_t)to_string(rd).size();
 			}
@@ -651,7 +652,7 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 			}
 			else if (memcmp(tmp + i, "[ln]", 4) == 0) // 自动生成一行
 			{
-				string line = GenJsLine();
+				string line = GenJsLine(GetRandomItem(m_jslines));
 				if (!line.empty())
 				{
 					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
@@ -661,7 +662,18 @@ void HtmlGenThread::GenerateTempl(const char * src, char * dst)
 			else if (tmp[i + 3] == ']')
 			{
 				string dicname = string(tmp + i + 1, 2);
-				GenerateFromVector(m_dicfiles[dicname], dst, dstsize, dstlen);
+				string line = GenJsLine(GetRandomItem(m_dicfiles[dicname]));
+				if (!line.empty())
+				{
+					memcpy_s(dst + dstlen, dstsize - dstlen, line.c_str(), line.size());
+					dstlen += (uint32_t)line.length();
+				}
+				else
+				{
+					// 如果无法获取对应的字典内容，则保留[xx]
+					dst[dstlen++] = tmp[i];
+					continue;
+				}
 			}
 			else
 			{
@@ -740,8 +752,15 @@ string HtmlGenThread::GenFromDicType(const string & type)
 			return GetRandomObject("");
 		else if (type == "id")
 			return GetRandomItem(m_ids, "id_0");
-		else if (type == "rand")
-			return to_string(random(0, 0xfffff));
+		else if (type.find("rand") == 0)
+		{
+			uint32_t rmax;
+			if(type.size() == 4)
+				rmax = RANDOM_MAX;
+			else
+				rmax= atoi(type.substr(4).c_str());
+			return to_string(random(0, rmax));
+		}
 		else if (type == "func")
 			return GetRandomItem(m_funcNames, "fuzz0");
 		else if (type == "htmltag")
@@ -814,30 +833,45 @@ string HtmlGenThread::GenHtmlLine(int id)
 
 string HtmlGenThread::GenJsFunction(const string &name)
 {
+	// select template line
+	string templ;
+	if (random(0, 100) < 20 && m_dicfiles.size() > 0)
+	{
+		uint32_t dicindex = random(0, m_dicfiles.size());
+		auto dici = m_dicfiles.begin();
+		while(dicindex--)
+			dici++;
+		templ = GetRandomItem((*dici).second);
+	}
+	else
+		templ = GetRandomItem(m_jslines);
+
 	string funcstr = "function " + name + "(){try{\n";
 	uint32_t count = random(10, 30);
 	for (uint32_t i = 0; i < count; i++)
 	{
 		funcstr += "    ";
-		funcstr += GenJsLine();
+		funcstr += GenJsLine(templ);
 		funcstr += "\n";
 	}
 	funcstr += "}catch(e){}}\n";
 	return funcstr;
 }
 
-string HtmlGenThread::GenJsLine()
+string HtmlGenThread::GenJsLine(const string &templ)
 {
-	string line = GetRandomItem(m_jslines, "id_0");
+	if (templ.empty())
+		return string();
+
 	string newline;
 	string type;
-	for (auto i = line.begin(); i < line.end(); i++)
+	for (auto i = templ.begin(); i < templ.end(); i++)
 	{
 		if ((*i) == '%')
 		{
 			do
 			{
-				if ((i + 1) == line.end())
+				if ((i + 1) == templ.end())
 					break;
 
 				if ((*(i + 1) >= '0' && *(i + 1) <= '9') ||
