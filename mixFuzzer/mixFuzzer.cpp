@@ -423,9 +423,9 @@ int _tmain(int argc, TCHAR** argv)
         while (true)
         {
 			// 判断是否达到fuzz时间上限
-			if (time(NULL) - fuzztime > 600)
+			if (time(NULL) - fuzztime > 500)
 			{
-				glogger.info(TEXT("fuzz timeout (10min), restart fuzz ..."));
+				glogger.info(TEXT("fuzz timeout, restart fuzz ..."));
 				break;
 			}
 
