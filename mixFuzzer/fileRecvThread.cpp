@@ -1,7 +1,7 @@
 #include "fileRecvThread.h"
 #include "common.h"
 
-extern GLogger2 glogger;
+extern GLogger glogger;
 
 typedef struct _sock_thread_para
 {

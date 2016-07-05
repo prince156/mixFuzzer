@@ -5,7 +5,7 @@
 
 #pragma comment(lib,"Ws2_32.lib")
 
-extern GLogger2 glogger;
+extern GLogger glogger;
 
 HttpServThread::HttpServThread(PHTTPSERV_THREAD_PARA para)
 	:GThread(para)

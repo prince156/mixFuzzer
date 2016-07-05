@@ -29,7 +29,7 @@
 using namespace std;
 using namespace gcommon;
 
-GLogger2 glogger;
+GLogger glogger;
 tstring GetCurrentDirPath();
 int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout = 2000);
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
