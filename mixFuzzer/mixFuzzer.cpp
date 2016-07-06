@@ -29,8 +29,7 @@
 using namespace std;
 using namespace gcommon;
 
-GLogger2 glogger;
-tstring GetCurrentDirPath();
+GLogger glogger;
 int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout = 2000);
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
 bool CheckCCInt3(char* buff);
@@ -47,13 +46,13 @@ uint32_t LogFile(const tstring &outpath, const tstring &crashpos,
 bool IsWow64();
 
 
-int _tmain(int argc, TCHAR** argv)
+int main(int argc, tchar** argv)
 {
-    //const TCHAR* sAUMID = TEXT("Microsoft.MicrosoftEdge_8wekyb3d8bbwe!MicrosoftEdge");
-    const TCHAR* sMicrosoftEdgeExecutable = TEXT("MicrosoftEdge.exe");
-    const TCHAR* sBrowserBrokerExecutable = TEXT("browser_broker.exe");
-    const TCHAR* sRuntimeBrokerExecutable = TEXT("RuntimeBroker.exe");
-    const TCHAR* sMicrosoftEdgeCPExecutable = TEXT("MicrosoftEdgeCP.exe");
+    //const tchar* sAUMID = TEXT("Microsoft.MicrosoftEdge_8wekyb3d8bbwe!MicrosoftEdge");
+    const tchar* sMicrosoftEdgeExecutable = TEXT("MicrosoftEdge.exe");
+    const tchar* sBrowserBrokerExecutable = TEXT("browser_broker.exe");
+    const tchar* sRuntimeBrokerExecutable = TEXT("RuntimeBroker.exe");
+    const tchar* sMicrosoftEdgeCPExecutable = TEXT("MicrosoftEdgeCP.exe");
 
     const uint32_t BUFF_SIZE = 1024 * 100;
     const uint32_t READ_DBGINFO_TIMEOUT = 1000;
@@ -132,21 +131,21 @@ int _tmain(int argc, TCHAR** argv)
     SetCurrentDirectory(currentDir.c_str());
 
     // 读取config文件	
-	webProcName = GetConfigPara(currentDir + configFile, TEXT("WEBCONTENT_EXE"), webProcName);
-	parentProcName = GetConfigPara(currentDir + configFile, TEXT("PARENT_EXE"), webProcName);
-	pageheap = _ttoi(GetConfigPara(currentDir + configFile, TEXT("PAGE_HEAP"), TEXT("1")).c_str());
-    debug_level = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEBUG_LEVEL"), TEXT("0")).c_str());
-    deadTimeout = _ttoi(GetConfigPara(currentDir + configFile, TEXT("DEAD_TIMEOUT"), TEXT("5000")).c_str());
-	waitTime = minWaitTime = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("1000")).c_str());
-    serverPort = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228")).c_str());
-    maxPocCount = _ttoi(GetConfigPara(currentDir + configFile, TEXT("MAX_POC_COUNT"), TEXT("10")).c_str());
-	killexplorer = _ttoi(GetConfigPara(currentDir + configFile, TEXT("KILL_EXPLORER"), TEXT("10")).c_str());
-	fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
-    appPath = GetConfigPara(currentDir + configFile, TEXT("APP_PATH"), appPath);
-    symPath = GetConfigPara(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
-    outPath = GetConfigPara(currentDir + configFile, TEXT("OUT_PATH"), outPath);
-    mode = GetConfigPara(currentDir + configFile, TEXT("MODE"), mode);
-    serverIP = GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_IP"), serverIP);
+	webProcName = GetConfigString(currentDir + configFile, TEXT("WEBCONTENT_EXE"), webProcName);
+	parentProcName = GetConfigString(currentDir + configFile, TEXT("PARENT_EXE"), webProcName);
+	pageheap = GetConfigInt(currentDir + configFile, TEXT("PAGE_HEAP"), TEXT("1"));
+    debug_level = GetConfigInt(currentDir + configFile, TEXT("DEBUG_LEVEL"), TEXT("0"));
+    deadTimeout = GetConfigInt(currentDir + configFile, TEXT("DEAD_TIMEOUT"), TEXT("5000"));
+	waitTime = minWaitTime = GetConfigInt(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("1000"));
+    serverPort = GetConfigInt(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228"));
+    maxPocCount = GetConfigInt(currentDir + configFile, TEXT("MAX_POC_COUNT"), TEXT("10"));
+	killexplorer = GetConfigInt(currentDir + configFile, TEXT("KILL_EXPLORER"), TEXT("10"));
+	fuzztarget = GetConfigString(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
+    appPath = GetConfigString(currentDir + configFile, TEXT("APP_PATH"), appPath);
+    symPath = GetConfigString(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
+    outPath = GetConfigString(currentDir + configFile, TEXT("OUT_PATH"), outPath);
+    mode = GetConfigString(currentDir + configFile, TEXT("MODE"), mode);
+    serverIP = GetConfigString(currentDir + configFile, TEXT("WEB_SERVER_IP"), serverIP);
 	
 	glogger.setDebugLevel(debug_level);
     glogger.info(TEXT("symbol path: ") + symPath);
@@ -238,12 +237,12 @@ int _tmain(int argc, TCHAR** argv)
 	if (pageheap)
 	{
 		sCommandLine = gflags_exe + TEXT(" /p /enable ") + webProcName + TEXT(" /full >nul");
-		_tsystem(sCommandLine.c_str());
+		tsystem(sCommandLine.c_str());
 	}
 	else
 	{
 		sCommandLine = gflags_exe + TEXT(" /p /disable ") + webProcName + TEXT(" /full >nul");
-		_tsystem(sCommandLine.c_str());
+		tsystem(sCommandLine.c_str());
 	}
 
 
@@ -330,8 +329,8 @@ int _tmain(int argc, TCHAR** argv)
         PROCESS_INFORMATION pi_edge;
         si_edge.dwFlags = STARTF_USESHOWWINDOW;
         si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口
-        TCHAR cmdline[1024];
-        _stprintf_s(cmdline, TEXT("%shttp://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
+        tchar cmdline[1024];
+        stprintf(cmdline, TEXT("%shttp://%s:%d"), appPath.c_str(), serverIP.c_str(), serverPort);
 		glogger.debug1(TEXT("CreateProcess: %s"), cmdline);
         BOOL bRet = CreateProcess(NULL, cmdline,
             NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
@@ -738,24 +737,6 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
     return nread;
 }
 
-tstring GetCurrentDirPath()
-{
-    tstring strCurrentDir;
-    TCHAR* pCurrentDir = new TCHAR[MAX_PATH + 1];
-    memset(pCurrentDir, 0, MAX_PATH + 1);
-    DWORD nRet = GetModuleFileName(NULL, pCurrentDir, MAX_PATH);
-    if (nRet == 0)
-    {
-        delete[] pCurrentDir;
-        return TEXT(".\\");
-    }
-
-    (_tcsrchr(pCurrentDir, '\\'))[1] = 0;
-    strCurrentDir = pCurrentDir;
-    delete[] pCurrentDir;
-
-    return strCurrentDir;
-}
 
 vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids)
 {
@@ -768,7 +749,7 @@ vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids)
         return vector<DWORD>();
 
     cProcesses = cbNeeded / sizeof(DWORD);
-    TCHAR szEXEName[MAX_PATH] = { 0 };
+    tchar szEXEName[MAX_PATH] = { 0 };
     for (i = 0; i < cProcesses; i++)
     {
         // Get a handle to the process
@@ -786,9 +767,9 @@ vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids)
             {
                 //Get the name of the exe file
                 GetModuleBaseName(hProcess, hMod, szEXEName,
-                    sizeof(szEXEName) / sizeof(TCHAR));
+                    sizeof(szEXEName) / sizeof(tchar));
 
-                if (_tcsicmp(szEXEName, pszProcessName) == 0)
+                if (tcscmp(szEXEName, pszProcessName) == 0) // 区分大小写
                 {
                     bool find = false;
                     for each (DWORD id in ids)
@@ -1072,13 +1053,12 @@ uint32_t LogFile(const tstring &outpath, const tstring &crashpos,
 		return 0;
 
 	tstring filepath = outpath + crashpos + TEXT("\\") + to_tstring(ct) + endstr;
-	FILE* htmlFile;
-	_tfopen_s(&htmlFile, filepath.c_str(), TEXT("w"));
+	FILE* htmlFile = tfopen(filepath.c_str(), TEXT("w"));
 	if (htmlFile == NULL)
 	{
 		glogger.warning(TEXT("can not create html file: ") + crashpos + TEXT("\\") + to_tstring(ct) + endstr);
 		filepath = outpath + TEXT("unknown\\") + to_tstring(ct) + endstr;
-		_tfopen_s(&htmlFile, filepath.c_str(), TEXT("w"));
+		htmlFile = tfopen(filepath.c_str(), TEXT("w"));
 		if (htmlFile == NULL)
 		{
 			glogger.error(TEXT("can not create html file: unknown\\") + to_tstring(ct) + endstr);

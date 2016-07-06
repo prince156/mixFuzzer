@@ -1,7 +1,7 @@
 #include "fileRecvThread.h"
 #include "common.h"
 
-extern GLogger2 glogger;
+extern GLogger glogger;
 
 typedef struct _sock_thread_para
 {
@@ -107,13 +107,13 @@ DWORD WINAPI SocketThread_FileRecv(PVOID para)
 			CreateDirectory(dirpath.c_str(), NULL); 
 			dirpath += dirname + TEXT("\\");
 			CreateDirectory(dirpath.c_str(), NULL);
-			_tfopen_s(&ff, (dirpath+filename).c_str(),TEXT("a"));
+			ff = tfopen((dirpath+filename).c_str(),TEXT("a"));
 			if (ff == NULL)
 			{
 				glogger.error(TEXT("can not create file: %s"), filename.c_str());
 				dirpath = pPara->para->outPath + inet_ltot(pPara->remoteIP) +
 					TEXT("\\unknown\\");
-				_tfopen_s(&ff, (dirpath + filename).c_str(), TEXT("a"));
+				ff = tfopen((dirpath + filename).c_str(), TEXT("a"));
 				if(ff == NULL)
 					break;
 			}
