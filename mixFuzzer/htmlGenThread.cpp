@@ -49,7 +49,10 @@ void HtmlGenThread::Init()
 {
 	m_glogger.info(TEXT("load dictionaries ..."));
 
-	LoadDicFiles("template\\??.txt", m_dicfiles);
+	ReadDicFiles("template\\??.txt", m_dicfiles);
+	ReadDicFiles("template\\xx\\??.txt", m_dicfiles);
+	if (m_dicfiles.empty())
+		m_glogger.warning(TEXT("load dictionary [??.txt] error"));
 	ReadDic("dic\\eventNames.txt", m_evts);
 	if (m_evts.empty())
 		m_glogger.warning(TEXT("load dictionary [eventNames] error"));
@@ -85,33 +88,34 @@ void HtmlGenThread::Init()
 	}
 
 	// dic for SVG
-	InitTagProperties("dic\\attributes_domsvg\\", "attributes-*.txt", m_svg_props);
+	ReadTagProperties("dic\\attributes_domsvg\\", "attributes-*.txt", m_svg_props);
 	if (m_svg_props.empty())
 		m_glogger.warning(TEXT("load dictionary [attributes_domsvg] error"));
-	InitTagProperties("dic\\attributes_javascript\\", "attributes-*.txt", m_svg_props);
-	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_svg_props);
-	InitTagProperties("dic\\attributes_htmlsvg\\", "attributes-*.txt", m_svgtag_props);
+	ReadTagProperties("dic\\attributes_javascript\\", "attributes-*.txt", m_svg_props);
+	ReadTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_svg_props);
+	ReadTagProperties("dic\\attributes_htmlsvg\\", "attributes-*.txt", m_svgtag_props);
 	if (m_svgtag_props.empty())
 		m_glogger.warning(TEXT("load dictionary [attributes_htmlsvg] error"));
 
 	// dic for DOM
-	InitTagProperties("dic\\attributes_dom2html5\\", "attributes-*.txt", m_dom_props);
+	ReadTagProperties("dic\\attributes_dom2html5\\", "attributes-*.txt", m_dom_props);
 	if (m_dom_props.empty())
 		m_glogger.warning(TEXT("load dictionary [attributes_dom2html5] error"));
-	InitTagProperties("dic\\attributes_javascript\\", "attributes-*.txt", m_dom_props);
-	InitTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_dom_props);
+	ReadTagProperties("dic\\attributes_javascript\\", "attributes-*.txt", m_dom_props);
+	ReadTagProperties("dic\\attributes_dom2core\\", "attributes-*.txt", m_dom_props);
 
 	// dic for HTML
-	InitTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
+	ReadTagProperties("dic\\attributes_html\\", "attributes-*.txt", m_tag_props);
 	if (m_tag_props.empty())
 		m_glogger.warning(TEXT("load dictionary [attributes_html] error"));
 
 	// dic for values
-	InitTypeValues("dic\\values\\", "values-*.txt", m_type_values);
+	ReadTypeValues("dic\\values\\", "values-*.txt", m_type_values);
 	if (m_tag_props.empty())
 		m_glogger.warning(TEXT("load dictionary [values] error"));
 	// additional values for the template
-	InitTypeValues("template\\", "values-*.txt", m_type_values);
+	ReadTypeValues("template\\", "values-*.txt", m_type_values);
+	ReadTypeValues("template\\values\\", "values-*.txt", m_type_values);
 
 	//InitRetobjDic(); // 太慢! 暂不使用
 	HandleInheritation(); // 处里继承
@@ -122,7 +126,7 @@ void HtmlGenThread::Init()
 	delete[] chr;
 }
 
-void HtmlGenThread::InitTagProperties(
+void HtmlGenThread::ReadTagProperties(
 	const string &path,
 	const string &name,
 	map<string, vector<PROPERTY>>& tag_props)
@@ -220,7 +224,7 @@ void HtmlGenThread::InitTagProperties(
 	_findclose(hh);
 }
 
-void HtmlGenThread::InitTypeValues(
+void HtmlGenThread::ReadTypeValues(
 	const string &path,
 	const string &name,
 	map<string, vector<string>>& tag_values)
@@ -281,7 +285,7 @@ void HtmlGenThread::InitTypeValues(
 }
 
 // 太慢了！！
-void HtmlGenThread::InitRetobjDic()
+void HtmlGenThread::ReadRetobjDic()
 {
 	// DOM
 	for each (auto props in m_dom_props)
@@ -471,10 +475,8 @@ int HtmlGenThread::ReadDic2(const char * dicfile, map<string, string>& tags)
 	return 0;
 }
 
-int HtmlGenThread::LoadDicFiles(const string & path, map<string, vector<string>>& files)
+int HtmlGenThread::ReadDicFiles(const string & path, map<string, vector<string>>& files)
 {
-	files.clear();
-
 	_finddata_t FileInfo;
 	intptr_t hh = _findfirst(path.c_str(), &FileInfo);
 	if (hh == -1L)

@@ -84,6 +84,7 @@ int _tmain(int argc, TCHAR** argv)
     tstring serverIP = TEXT("127.0.0.1");
     tstring fuzztarget = TEXT("");	
 	int pageheap = 1;
+	int killexplorer = 1;
     bool isWow64 = IsWow64();
 
     tstring cdb_exe = isWow64 ? CDB_X64 : CDB_X86;
@@ -139,12 +140,14 @@ int _tmain(int argc, TCHAR** argv)
 	waitTime = minWaitTime = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WAIT_TIME"), TEXT("1000")).c_str());
     serverPort = _ttoi(GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_PORT"), TEXT("12228")).c_str());
     maxPocCount = _ttoi(GetConfigPara(currentDir + configFile, TEXT("MAX_POC_COUNT"), TEXT("10")).c_str());
-    fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
+	killexplorer = _ttoi(GetConfigPara(currentDir + configFile, TEXT("KILL_EXPLORER"), TEXT("10")).c_str());
+	fuzztarget = GetConfigPara(currentDir + configFile, TEXT("FUZZ_APP"), parentProcName.substr(0,parentProcName.size()-4));
     appPath = GetConfigPara(currentDir + configFile, TEXT("APP_PATH"), appPath);
     symPath = GetConfigPara(currentDir + configFile, TEXT("SYMBOL_PATH"), symPath);
     outPath = GetConfigPara(currentDir + configFile, TEXT("OUT_PATH"), outPath);
     mode = GetConfigPara(currentDir + configFile, TEXT("MODE"), mode);
     serverIP = GetConfigPara(currentDir + configFile, TEXT("WEB_SERVER_IP"), serverIP);
+	
 	glogger.setDebugLevel(debug_level);
     glogger.info(TEXT("symbol path: ") + symPath);
     glogger.info(TEXT(" ouput path: ") + outPath);
@@ -263,6 +266,7 @@ int _tmain(int argc, TCHAR** argv)
 	}
 
     // fuzz循环
+	uint32_t fuzzcount = 0;
     DWORD nwrite, nread;
     uint32_t buffsize = 1024;
     char* rbuff = new char[buffsize + 1];
@@ -272,6 +276,7 @@ int _tmain(int argc, TCHAR** argv)
 	char* logbuff = new char[MAX_SENDBUFF_SIZE + 1];
     while (true)
     {
+		fuzzcount++;
         glogger.screen(TEXT("\n\n"));
         glogger.insertCurrentTime();
         glogger.info(TEXT("Start Fuzzing ..."));
@@ -292,12 +297,16 @@ int _tmain(int argc, TCHAR** argv)
             glogger.error(TEXT("Cannot kill cdb, restart fuzz."));
             continue;
         }
-		glogger.debug1(TEXT("kill explorer.exe ..."));
-        if (!TerminateAllProcess(TEXT("explorer.exe")))
-        {
-            //glogger.warning(TEXT("Cannot kill explorer, restart fuzz."));
-            //continue;
-        }
+		if (killexplorer <= fuzzcount)
+		{
+			glogger.debug1(TEXT("kill explorer.exe ..."));
+			if (!TerminateAllProcess(TEXT("explorer.exe")))
+			{
+				//glogger.warning(TEXT("Cannot kill explorer, restart fuzz."));
+				//continue;
+			}
+			fuzzcount = 0;
+		}
 		glogger.debug1(TEXT("kill %s ..."), webProcName.c_str());
 		if (!TerminateAllProcess(webProcName.c_str()))
 		{
@@ -353,7 +362,7 @@ int _tmain(int argc, TCHAR** argv)
 
         // attach调试器	
         sCommandLine = TEXT("tools\\") + cdb_exe + TEXT(" -o -p ") + to_tstring(procIDs[0]);
-        glogger.info(TEXT("Attach ") + cdb_exe);
+        glogger.info(TEXT("Attach ") + cdb_exe + TEXT(" to ") + webProcName +TEXT(" ..."));
         glogger.info(TEXT("  -pid:") + to_tstring(procIDs[0]));
         STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
         si_cdb.dwFlags |= STARTF_USESTDHANDLES;
@@ -397,24 +406,15 @@ int _tmain(int argc, TCHAR** argv)
         }
 
         // debug信息：|*\n
-        if (debug_level > 0)
+		Sleep(100);
+        if (debug_level > 1)
         {
             while (GetDebugInfo(outputPipeR, rbuff, buffsize, 100));
-			glogger.debug1(TEXT("windbg command: |*"));
+			glogger.debug2(TEXT("windbg command: |*"));
             WriteFile(inputPipeW, "|*\n", 3, &nwrite, NULL);
             if (GetDebugInfo(outputPipeR, rbuff, buffsize) > 0)
             {
-                size_t pos = 0;
-                size_t bufflen = strlen(rbuff);
-                for (size_t i = 0; i < bufflen; i++)
-                {
-                    if (rbuff[i] == '\n')
-                    {
-                        rbuff[i] = 0;
-                        printf("+1 [main] %s\n", rbuff + pos);
-                        pos = i + 1;
-                    }
-                }
+				glogger.debug2(StringToTString(string(rbuff)));
             }
         }
 
@@ -427,9 +427,17 @@ int _tmain(int argc, TCHAR** argv)
         // 监听cdg循环
         glogger.info(TEXT("Fuzzing ..."));
         pbuff[0] = 0;
-        uint32_t idletime = 0;
+		uint32_t idletime = 0;
+		time_t fuzztime = time(NULL);
         while (true)
         {
+			// 判断是否达到fuzz时间上限
+			if (time(NULL) - fuzztime > 500)
+			{
+				glogger.info(TEXT("fuzz timeout, restart fuzz ..."));
+				break;
+			}
+
             // 查看是否存在新的进程
             procIDs_new = GetAllProcessId(webProcName.c_str(), procIDs);
             if (!procIDs_new.empty())
@@ -509,10 +517,7 @@ int _tmain(int argc, TCHAR** argv)
 
                 // 判定为crash 
                 glogger.error(TEXT("!! find crash !!"));				
-                if (debug_level > 0)
-                {
-                    printf("+1 [main] %s\n", pbuff);
-                }				               
+                glogger.debug2(StringToTString(string(pbuff)));				               
 
                 // 获取崩溃位置作为目录名
                 tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
@@ -608,6 +613,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
     nread = GetDebugInfo(houtPipeR, rbuff, 1024);
     if (nread == 0)
         return tstring(TEXT("unknown"));
+	glogger.debug2(StringToTString(string(rbuff)));
 
     size_t i = 0, start = 0;
     for (i = 0; i < strlen(rbuff); i++)
@@ -625,7 +631,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
         return tstring(TEXT("unknown"));
     }
 
-    for (i = start; i < strlen(rbuff); i++)
+    for (i = start; i < strlen(rbuff+start); i++)
     {
 		if (rbuff[i] == '\n' && i > 0)
 		{
@@ -718,8 +724,11 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
             break;
     }
 
-    if (nread == 0)
-        return 0;
+	if (nread == 0)
+	{
+		buff[0] = 0;
+		return 0;
+	}
 
     nread = 0;
     ReadFile(hPipe, buff, size, &nread, NULL);

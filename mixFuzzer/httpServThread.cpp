@@ -204,8 +204,8 @@ void HttpServThread::ThreadMain()
 	// 判断client是否存活
 	for (auto client = m_clients.begin(); client != m_clients.end(); client++)
 	{
-		if (time(NULL) - (*client).second.activeTime > 300 &&
-			(*client).second.isDead == false) // 超过300s则认为client已经失效
+		if (time(NULL) - (*client).second.activeTime > 600 &&
+			(*client).second.isDead == false) // 超过600s则认为client已经失效
 		{
 			tstring remoteIP = inet_ltot((*client).first);
 			glogger.setDefaultColor(gcommon::PRINT_COLOR::DARK_YELLOW);
