@@ -30,7 +30,7 @@
     <ClInclude Include="..\..\common\common.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\common\glogger2.h">
+    <ClInclude Include="..\..\common\glogger.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -44,7 +44,7 @@
     <ClCompile Include="..\..\common\common.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\common\glogger2.cpp">
+    <ClCompile Include="..\..\common\glogger.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,12 +1,18 @@
-#ifdef __WINDOWS__   
-#include <WinSock2.h>
-#endif   
-
 #ifdef __LINUX__   
+#include <sys/types.h>  
 #include <sys/socket.h>
+#include <sys/stat.h> 
+#include <unistd.h>
+#include <fcntl.h>
+#include <dirent.h>  
+#include <syswait.h>
 typedef int SOCKET;
 typedef int HANDLE;
 #define SOCKET_ERROR (-1)   
+#else
+#include <WinSock2.h>
+#include <Psapi.h>
+#pragma comment(lib,"Ws2_32.lib")
 #endif   
 
 #include <string>
@@ -17,9 +23,10 @@ typedef int HANDLE;
 #include <stdarg.h>  // va_list
 #include <stdio.h>   // printf
 #include <stdlib.h>  // atoi
-//#include "tstream.h"
+#include "common.h"
+#include "glogger.h"
 
-//#pragma comment(lib,"Ws2_32.lib")
+
 
 #define SOFT_NAME "mixClient"
 #define SOFT_VER "v1.3"
@@ -31,88 +38,14 @@ typedef int HANDLE;
 #define GFLAGS_X64 "tools\\gflags_x64.exe"
 
 using namespace std;
-//using namespace gcommon;
+using namespace gcommon;
 
-class TempGLogger
-{
-public:
-	// 输出错误信息
-	void error(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		string newformat = " x [xx] " + format + "\n";
-		vprintf(newformat.c_str(), ap);
-		va_end(ap);
-	}
+GLogger glogger;
 
-	// 输出警告信息
-	void warning(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		string newformat = " ! [xx] " + format + "\n";
-		vprintf(newformat.c_str(), ap);
-		va_end(ap);
-	}
+void CreateDir(const tstring& path);
 
-	// 输出普通信息
-	void info(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		string newformat = "   [xx] " + format + "\n";
-		vprintf(newformat.c_str(), ap);
-		va_end(ap);
-	}
-
-	// 只输出调试等级1的信息
-	void debug1(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		string newformat = "+1 [xx] " + format + "\n";
-		vprintf(newformat.c_str(), ap);
-		va_end(ap);
-	}
-
-	// 输出调试等级1/2的信息
-	void debug2(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		string newformat = "+2 [xx] " + format + "\n";
-		vprintf(newformat.c_str(), ap);
-		va_end(ap);
-	}
-
-	// 输出调试等级1/2/3的信息
-	void debug3(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		string newformat = "+3 [xx] " + format + "\n";
-		vprintf(newformat.c_str(), ap);
-		va_end(ap);
-	}
-
-	// 输出原始信息到屏幕（不添加任何前导字符）
-	void screen(const string format, ...)
-	{
-		va_list ap;
-		va_start(ap, format);
-		vprintf(format.c_str(), ap);
-		va_end(ap);
-	}
-};
-
-TempGLogger glogger;
-
-string GetCurrentDirPath();
-string GetConfigPara(string strConfigFilePath, string key, string dft);
-
-int GetDebugInfo(void* hPipe, char* buff, int size, int timeout = 2000);
-string GetCrashPos(void* hinPipeW, void* houtPipeR);
+int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout = 2000);
+string GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
 bool CheckCCInt3(char* buff);
 bool CheckC3Ret(char* buff);
 vector<uint32_t> GetAllProcessId(const char* pszProcessName, vector<uint32_t> ids);
@@ -123,7 +56,9 @@ uint32_t SendFile(string serverip, uint16_t port,
 	time_t time, const string &crashpos, uint8_t type, char* data, int datalen);
 uint32_t LogFile(const string &outpath, const string &crashpos,
 	const string &endstr, char* data, int datalen, time_t ct);
+
 bool IsWow64();
+void GSleep(uint32_t ms);
 
 const static uint32_t MAX_SENDBUFF_SIZE = 1024 * 200;
 const static uint32_t MAX_PATH_SIZE = 256;
@@ -153,7 +88,7 @@ int main(int argc, char** argv)
 	string parentProcName = ("MicrosoftEdge.exe");
 	string webProcName = ("MicrosoftEdgeCP.exe");
 
-	//PRINT_TARGET print_target = PRINT_TARGET::BOTH;
+	PRINT_TARGET print_target = PRINT_TARGET::BOTH;
 	int debug_level = 0;
 	uint32_t deadTimeout = 5000; // 浏览器卡死超时
 	uint32_t waitTime = 2000;    // 浏览器启动等待时间
@@ -170,11 +105,11 @@ int main(int argc, char** argv)
 	string gflags_exe = GFLAGS_X86;
 
 	// 初始化glogger	
-	//glogger.setDebugLevel(debug_level);
-	//glogger.setHeader(("main"));
-	//glogger.enableColor();
-	//glogger.setLogFile(log_file);
-	//glogger.setTarget(print_target);
+	glogger.setDebugLevel(debug_level);
+	glogger.setHeader("main");
+	glogger.enableColor();
+	glogger.setLogFile(log_file);
+	glogger.setTarget(print_target);
 
 	// 初始化console显示
 	string title = SOFT_NAME;
@@ -186,14 +121,6 @@ int main(int argc, char** argv)
 	// 创建debug Pipe
 	HANDLE inputPipeR = 0, inputPipeW = 0;
 	HANDLE outputPipeR = 0, outputPipeW = 0;
-#ifdef __WINDOWS__
-	SECURITY_ATTRIBUTES saAttr;
-	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-	saAttr.bInheritHandle = TRUE;
-	saAttr.lpSecurityDescriptor = NULL;
-	CreatePipe(&inputPipeR, &inputPipeW, &saAttr, 0);
-	CreatePipe(&outputPipeR, &outputPipeW, &saAttr, 0);
-#endif
 
 #ifdef __LINUX__
 	HANDLE inputFD[2] = { 0 }, outputFD[2] = { 0 };
@@ -203,6 +130,13 @@ int main(int argc, char** argv)
 	inputPipeW = inputFD[1];
 	outputPipeR = outputFD[0];
 	outputPipeW = outputFD[1];
+#else
+	SECURITY_ATTRIBUTES saAttr;
+	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+	saAttr.bInheritHandle = TRUE;
+	saAttr.lpSecurityDescriptor = NULL;
+	CreatePipe(&inputPipeR, &inputPipeW, &saAttr, 0);
+	CreatePipe(&outputPipeR, &outputPipeW, &saAttr, 0);
 #endif	
 
 	if (inputPipeR == 0 || inputPipeW == 0 ||
@@ -211,8 +145,6 @@ int main(int argc, char** argv)
 		glogger.error(("failed to create pipe"));
 		exit(fgetc(stdin));
 	}
-
-	exit(fgetc(stdin));
 	
 	// 获取当前文件夹路径		
 	string currentDir = GetCurrentDirPath();
@@ -221,41 +153,32 @@ int main(int argc, char** argv)
 		glogger.warning(("can not get current dir, use default dir"));
 		currentDir = (".\\");
 	}
+	glogger.debug1("current dir: " + currentDir);
 	//SetCurrentDirectory(currentDir.c_str());
 
 	// 读取config文件	
-	webProcName = GetConfigPara(currentDir + configFile, ("WEBCONTENT_EXE"), webProcName);
-	parentProcName = GetConfigPara(currentDir + configFile, ("PARENT_EXE"), webProcName);
-	pageheap = atoi(GetConfigPara(currentDir + configFile, ("PAGE_HEAP"), ("1")).c_str());
-	debug_level = atoi(GetConfigPara(currentDir + configFile, ("DEBUG_LEVEL"), ("0")).c_str());
-	deadTimeout = atoi(GetConfigPara(currentDir + configFile, ("DEAD_TIMEOUT"), ("5000")).c_str());
-	waitTime = minWaitTime = atoi(GetConfigPara(currentDir + configFile, ("WAIT_TIME"), ("1000")).c_str());
-	serverPort = atoi(GetConfigPara(currentDir + configFile, ("WEB_SERVER_PORT"), ("12228")).c_str());
-	maxPocCount = atoi(GetConfigPara(currentDir + configFile, ("MAX_POC_COUNT"), ("10")).c_str());
-	fuzztarget = GetConfigPara(currentDir + configFile, ("FUZZ_APP"), parentProcName.substr(0, parentProcName.size() - 4));
-	appPath = GetConfigPara(currentDir + configFile, ("APP_PATH"), appPath);
-	symPath = GetConfigPara(currentDir + configFile, ("SYMBOL_PATH"), symPath);
-	outPath = GetConfigPara(currentDir + configFile, ("OUT_PATH"), outPath);
-	mode = GetConfigPara(currentDir + configFile, ("MODE"), mode);
-	serverIP = GetConfigPara(currentDir + configFile, ("WEB_SERVER_IP"), serverIP);
-	//glogger.setDebugLevel(debug_level);
+	webProcName = GetConfigString(currentDir + configFile, ("WEBCONTENT_EXE"), webProcName);
+	parentProcName = GetConfigString(currentDir + configFile, ("PARENT_EXE"), webProcName);
+	pageheap = GetConfigInt(currentDir + configFile, ("PAGE_HEAP"), ("1"));
+	debug_level = GetConfigInt(currentDir + configFile, ("DEBUG_LEVEL"), ("0"));
+	deadTimeout = GetConfigInt(currentDir + configFile, ("DEAD_TIMEOUT"), ("5000"));
+	waitTime = minWaitTime = GetConfigInt(currentDir + configFile, ("WAIT_TIME"), ("1000"));
+	serverPort = GetConfigInt(currentDir + configFile, ("WEB_SERVER_PORT"), ("12228"));
+	maxPocCount = GetConfigInt(currentDir + configFile, ("MAX_POC_COUNT"), ("10"));
+	fuzztarget = GetConfigString(currentDir + configFile, ("FUZZ_APP"), parentProcName.substr(0, parentProcName.size() - 4));
+	appPath = GetConfigString(currentDir + configFile, ("APP_PATH"), appPath);
+	symPath = GetConfigString(currentDir + configFile, ("SYMBOL_PATH"), symPath);
+	outPath = GetConfigString(currentDir + configFile, ("OUT_PATH"), outPath);
+	// mode = GetConfigPara(currentDir + configFile, ("MODE"), mode);
+	serverIP = GetConfigString(currentDir + configFile, ("WEB_SERVER_IP"), serverIP);
+	glogger.setDebugLevel(debug_level);
 	glogger.info(("symbol path: ") + symPath);
 	glogger.info((" ouput path: ") + outPath);
 	if (outPath.back() != '\\')
 		outPath.append(("\\"));
 
 	// 创建crash目录
-	// CreateDirectory(outPath.c_str(), NULL);
-
-	// semaphore
-	//void* semaphorep = CreateSemaphore(NULL, 1, 1, ("mixfuzzer_sem_htmlbuff_p"));
-	//void* semaphorec = CreateSemaphore(NULL, 0, 1, ("mixfuzzer_sem_htmlbuff_c"));
-
-	// client模式
-	if (mode != ("client"))
-	{
-		// 读取模板文件
-	}
+	CreateDir(outPath);
 
 	// 打开page heap, 关闭内存保护, ...
 	string sCommandLine;
@@ -269,7 +192,6 @@ int main(int argc, char** argv)
 		sCommandLine = gflags_exe + (" /p /disable ") + webProcName + (" /full >nul");
 		//_tsystem(sCommandLine.c_str());
 	}
-
 
 	if (fuzztarget == ("edge"))
 	{
@@ -300,7 +222,7 @@ int main(int argc, char** argv)
 	while (true)
 	{
 		glogger.screen(("\n\n"));
-		//glogger.insertCurrentTime();
+		glogger.insertCurrentTime();
 		glogger.info(("Start Fuzzing ..."));
 
 		nread = nwrite = 0;
@@ -322,7 +244,7 @@ int main(int argc, char** argv)
 		glogger.debug1(("kill explorer.exe ..."));
 		if (!TerminateAllProcess(("explorer.exe")))
 		{
-			//glogger.warning(("Cannot kill explorer, restart fuzz."));
+			glogger.warning(("Cannot kill explorer, restart fuzz."));
 			//continue;
 		}
 		glogger.debug1(("kill %s ..."), webProcName.c_str());
@@ -364,7 +286,7 @@ int main(int argc, char** argv)
 			glogger.error(("path=") + appPath);
 			//exit(_getch());
 		}
-		//Sleep(waitTime); // 尽量等待一段时间
+		GSleep(waitTime); // 尽量等待一段时间
 		if (waitTime > minWaitTime)
 			waitTime -= 100;
 
@@ -450,7 +372,7 @@ int main(int argc, char** argv)
 		sCommandLine = (".sympath \"") + symPath + ("\";g;\n"); // 同时加入g; 防止后面出现异常
 		glogger.debug1(("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
 		//WriteFile(inputPipeW, stringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
-		//Sleep(100);
+		GSleep(100);
 
 		// 监听cdg循环
 		glogger.info(("Fuzzing ..."));
@@ -626,7 +548,7 @@ int main(int argc, char** argv)
 	//exit(_getch());
 }
 
-string GetCrashPos(void* hinPipeW, void* houtPipeR)
+string GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 {
 	uint32_t nwrite, nread;
 	char rbuff[1024 + 1];
@@ -732,13 +654,13 @@ bool CheckC3Ret(char* buff)
 	return true;
 }
 
-int GetDebugInfo(void* hPipe, char* buff, int size, int timeout)
+int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 {
 	int count = timeout / 100;
 	uint32_t nread = 0;
 	while (count--)
 	{
-		//Sleep(100);
+		GSleep(100);
 		//if (!PeekNamedPipe(hPipe, buff, size, &nread, 0, 0))
 		//	continue;
 
@@ -761,10 +683,18 @@ string GetCurrentDirPath()
 {
 	string strCurrentDir;
 	char* pCurrentDir = new char[MAX_PATH_SIZE + 1];
+#ifdef __LINUX__
+	ssize_t count = readlink("/proc/self/exe", pCurrentDir, MAX_PATH_SIZE);
+	pCurrentDir[count] = 0;
+	(strrchr(pCurrentDir, '/'))[1] = 0;
+	strCurrentDir = pCurrentDir;
+	strCurrentDir += "/";
+	delete[] pCurrentDir;
+#else
+	
 	memset(pCurrentDir, 0, MAX_PATH_SIZE + 1);
-	//uint32_t nRet = GetModuleFileName(NULL, pCurrentDir, MAX_PATH);
-	//if (nRet == 0)
-	if(false)
+	uint32_t nRet = GetModuleFileName(NULL, pCurrentDir, MAX_PATH);
+	if (nRet == 0)
 	{
 		delete[] pCurrentDir;
 		return (".\\");
@@ -773,42 +703,108 @@ string GetCurrentDirPath()
 	(strrchr(pCurrentDir, '\\'))[1] = 0;
 	strCurrentDir = pCurrentDir;
 	delete[] pCurrentDir;
-
+#endif
 	return strCurrentDir;
+}
+
+void CreateDir(const tstring & path)
+{	
+#ifdef __LINUX__
+	tstring newpath = path;
+	ReplaseAllSubString(newpath, TEXT("\\"), TEXT("/"));
+	mkdir(newpath.c_str(), 0777);
+#else
+	CreateDirectory(path.c_str(), NULL);
+#endif
 }
 
 vector<uint32_t> GetAllProcessId(const char* pszProcessName, vector<uint32_t> ids)
 {
-	uint32_t aProcesses[1024], cbNeeded, cProcesses;
-	uint32_t i;
 	vector<uint32_t> pids;
 
+#ifdef __LINUX__
+	int pnlen = strlen(pszProcessName);
+
+	/* Open the /proc directory. */
+	DIR* dir = opendir("/proc");
+	if (!dir)
+	{
+		glogger.error("cannot open /proc");
+		return pids;
+	}
+
+	/* Walk through the directory. */
+	char            *s;
+	int             pid;
+	struct dirent   *d;
+	while ((d = readdir(dir)) != NULL) 
+	{
+		char exe[MAX_PATH + 1];
+		char path[MAX_PATH + 1];
+		int len;
+		int namelen;
+
+		/* See if this is a process */
+		if ((pid = atoi(d->d_name)) == 0)       
+			continue;
+
+		snprintf(exe, sizeof(exe), "/proc/%s/exe", d->d_name);
+		if ((len = readlink(exe, path, PATH_MAX)) < 0)
+			continue;
+		path[len] = '\0';
+
+		/* Find ProcName */
+		s = strrchr(path, '/');
+		if (s == NULL)
+			continue;
+		s++;
+
+		/* we don't need small name len */
+		namelen = strlen(s);
+		if (namelen < pnlen)     
+			continue;
+
+		if (!strncmp(pszProcessName, s, pnlen)) 
+		{
+			/* to avoid subname like search proc tao but proc taolinke matched */
+			if (s[pnlen] == ' ' || s[pnlen] == '\0') 
+			{
+				pids.push_back(pid);
+			}
+		}
+	}
+	closedir(dir);
+
+#else
+	DWORD aProcesses[1024], cbNeeded, cProcesses;
+	uint32_t i;
+
 	// Enumerate all processes
-	//if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
-	//	return vector<uint32_t>();
+	if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
+		return vector<uint32_t>();
 
 	cProcesses = cbNeeded / sizeof(uint32_t);
 	char szEXEName[MAX_PATH_SIZE] = { 0 };
 	for (i = 0; i < cProcesses; i++)
 	{
 		// Get a void* to the process
-		void* hProcess;
-		//void* hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
-		//	PROCESS_VM_READ, FALSE, aProcesses[i]);
+		HANDLE hProcess;
+		HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
+			PROCESS_VM_READ, FALSE, aProcesses[i]);
 
 		// Get the process name
 		if (NULL != hProcess)
 		{
-			void* hMod;
-			uint32_t cbNeeded;
+			HMODULE hMod;
+			DWORD cbNeeded;
 
-			//if (EnumProcessModules(hProcess, &hMod,
-			//	sizeof(hMod), &cbNeeded))
+			if (EnumProcessModules(hProcess, &hMod,
+				sizeof(hMod), &cbNeeded))
 			if(false)
 			{
 				//Get the name of the exe file
-				//GetModuleBaseName(hProcess, hMod, szEXEName,
-				//	sizeof(szEXEName) / sizeof(char));
+				GetModuleBaseName(hProcess, hMod, szEXEName,
+					sizeof(szEXEName) / sizeof(char));
 
 				if (strcmp(szEXEName, pszProcessName) == 0)
 				{
@@ -825,9 +821,10 @@ vector<uint32_t> GetAllProcessId(const char* pszProcessName, vector<uint32_t> id
 						pids.push_back(aProcesses[i]);
 				}
 			}
-			//Closevoid*(hProcess);
+			CloseHandle(hProcess);
 		}
 	}
+#endif // 
 	return pids;
 }
 
@@ -840,15 +837,21 @@ bool TerminateAllProcess(const char* pszProcessName)
 		ret = false;
 		if (pid != 0)
 		{
-			//void* hProcess = OpenProcess(
-			//	PROCESS_TERMINATE |
-			//	PROCESS_QUERY_LIMITED_INFORMATION |
-			//	SYNCHRONIZE, FALSE, pid);
-			//if (hProcess != NULL)
-			//{
-			//	TerminateProcess(hProcess, 0);
-			//	ret = true;
-			//}
+			glogger.debug2("kill %d", pid);			
+#ifdef __LINUX__
+			string s = "/bin/kill -9 " + to_string(pid);
+			system(s.c_str());
+#else
+			void* hProcess = OpenProcess(
+				PROCESS_TERMINATE |
+				PROCESS_QUERY_LIMITED_INFORMATION |
+				SYNCHRONIZE, FALSE, pid);
+			if (hProcess != NULL)
+			{
+				TerminateProcess(hProcess, 0);
+				ret = true;
+			}
+#endif	
 		}
 	}
 
@@ -857,10 +860,11 @@ bool TerminateAllProcess(const char* pszProcessName)
 	{
 		if (count >= 10)
 			return false;
-		//Sleep(100);
+		GSleep(100);
 		pids = GetAllProcessId(pszProcessName, vector<uint32_t>());
 		count++;
 	} while (!pids.empty());
+
 	return true;
 }
 
@@ -869,7 +873,7 @@ uint32_t GetFilecountInDir(string dir, string fileext)
 	//_tfinddata_t FileInfo;
 	//string strfind = dir + ("\\*.") + fileext;
 	//intptr_t hh = _tfindfirst(strfind.c_str(), &FileInfo);
-	//int count = 0;
+	int count = 0;
 	//
 	//if (hh == -1L)
 	//{
@@ -889,7 +893,7 @@ uint32_t GetFilecountInDir(string dir, string fileext)
 	//} while (_tfindnext(hh, &FileInfo) == 0);
 	//
 	//_findclose(hh);
-	//return count;
+	return count;
 }
 
 uint32_t GetHTMLFromServer(const string& serverip, uint16_t port, const string& name, char* buff)
@@ -951,14 +955,14 @@ uint32_t GetHTMLFromServer(const string& serverip, uint16_t port, const string& 
 	//
 	//closesocket(sock);
 	//WSACleanup();
-	//return 0;
+	return 0;
 }
 
 uint32_t SendFile(string serverip, uint16_t port,
 	time_t time, const string & crashpos, uint8_t type, char * data, int datalen)
 {
 	//if (data == NULL || datalen == 0)
-	//	return 0;
+		return 0;
 	//
 	//// Initialize Winsock
 	//WSADATA wsaData;
@@ -1051,7 +1055,14 @@ bool IsWow64()
 #endif
 }
 
-string GetConfigPara(string strConfigFilePath, string key, string dft)
+void GSleep(uint32_t ms)
 {
-	return string();
+#ifdef __LINUX__
+	usleep(ms);
+#else
+	Sleep(ms);
+#endif
 }
+
+
+
