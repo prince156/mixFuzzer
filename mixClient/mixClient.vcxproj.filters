@@ -49,4 +49,7 @@
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Output\Debug\client.ini" />
+  </ItemGroup>
 </Project>

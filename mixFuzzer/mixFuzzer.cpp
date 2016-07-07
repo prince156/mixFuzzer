@@ -131,6 +131,8 @@ int main(int argc, tchar** argv)
     SetCurrentDirectory(currentDir.c_str());
 
     // 读取config文件	
+	if (taccess((currentDir + configFile).c_str(), 4) != 0)
+		glogger.warning(TEXT("can not find config file: ") + configFile);
 	webProcName = GetConfigString(currentDir + configFile, TEXT("WEBCONTENT_EXE"), webProcName);
 	parentProcName = GetConfigString(currentDir + configFile, TEXT("PARENT_EXE"), webProcName);
 	pageheap = GetConfigInt(currentDir + configFile, TEXT("PAGE_HEAP"), TEXT("1"));
@@ -612,6 +614,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
     nread = GetDebugInfo(houtPipeR, rbuff, 1024);
     if (nread == 0)
         return tstring(TEXT("unknown"));
+	rbuff[nread] = 0;
 	glogger.debug2(StringToTString(string(rbuff)));
 
     size_t i = 0, start = 0;
@@ -620,7 +623,10 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
         if (rbuff[i] == '!' || rbuff[i] == '+')
         {
             while (i > 0 && rbuff[--i] != '\n');
-            start = i;
+			if (rbuff[i] == '\n')
+				start = ++i;
+			else
+				start = i;
             break;
         }
     }
@@ -711,6 +717,7 @@ bool CheckC3Ret(char* buff)
 
 int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 {
+	buff[0] = 0;
     int count = timeout / 100;
     DWORD nread = 0;
     while (count--)
@@ -769,7 +776,7 @@ vector<DWORD> GetAllProcessId(LPCTSTR pszProcessName, vector<DWORD> &ids)
                 GetModuleBaseName(hProcess, hMod, szEXEName,
                     sizeof(szEXEName) / sizeof(tchar));
 
-                if (tcscmp(szEXEName, pszProcessName) == 0) // 区分大小写
+                if (tcsicmp(szEXEName, pszProcessName) == 0) 
                 {
                     bool find = false;
                     for each (DWORD id in ids)

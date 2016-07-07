@@ -2,6 +2,7 @@
 #include <sys/types.h>  
 #include <sys/socket.h>
 #include <sys/stat.h> 
+#include <arpa/inet.h> 
 #include <unistd.h>
 #include <fcntl.h>
 #include <dirent.h>  
@@ -9,10 +10,15 @@
 typedef int SOCKET;
 typedef int HANDLE;
 #define SOCKET_ERROR (-1)   
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERRNO errno
 #else
 #include <WinSock2.h>
+#include <io.h>
+#include <tchar.h>
 #include <Psapi.h>
 #pragma comment(lib,"Ws2_32.lib")
+#define SOCKET_ERRNO WSAGetLastError()
 #endif   
 
 #include <string>
@@ -25,7 +31,6 @@ typedef int HANDLE;
 #include <stdlib.h>  // atoi
 #include "common.h"
 #include "glogger.h"
-
 
 
 #define SOFT_NAME TEXT("mixClient")
@@ -49,6 +54,7 @@ void DebugCommand(HANDLE hPipe, const char* cmd);
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
 bool CheckCCInt3(char* buff);
 bool CheckC3Ret(char* buff);
+bool CheckEnds(const char* buff, const char* ends);
 vector<uint32_t> GetAllProcessId(const tchar* pszProcessName, vector<uint32_t> ids);
 bool TerminateAllProcess(const tchar* pszProcessName);
 bool StartProcess(const tstring& path, const tstring& arg);
@@ -80,7 +86,7 @@ int main(int argc, char** argv)
 	const uint32_t BUFF_SIZE = 1024 * 100;
 	const uint32_t READ_DBGINFO_TIMEOUT = 1000;
 
-	tstring configFile = TEXT("config.ini");
+	tstring configFile = TEXT("client.ini");
 	tstring symPath = TEXT("srv*");
 	tstring outPath = TEXT("crash");
 	tstring htmlPath;
@@ -98,17 +104,18 @@ int main(int argc, char** argv)
 	uint32_t minWaitTime = 1000;
 	int serverPort = 12228; // http服务端口
 	uint32_t maxPocCount = 10;   // 同一个目录中最大poc数量（以log文件计数）
-	tstring log_file = TEXT("mixfuzz.log");
-	tstring mode = TEXT("local");
+	tstring log_file = TEXT("mixclient.log");
 	tstring serverIP = TEXT("127.0.0.1");
 	tstring fuzztarget = TEXT("");
 	int pageheap = 1;
 
 #ifdef __LINUX__
 	tstring debugger = TEXT("gdb");
+	string cmd_continue = "c\n";
 #else
 	tstring debugger = IsWow64() ? CDB_X64 : CDB_X86;
 	tstring gflags_exe = IsWow64() ? GFLAGS_X64 : GFLAGS_X86;
+	string cmd_continue = "g\n";
 #endif // 
 
 	// 初始化glogger	
@@ -140,8 +147,8 @@ int main(int argc, char** argv)
 		glogger.error(TEXT("failed to create output pipe: %d"), errno);
 		exit(fgetc(stdin));
 	}
-	inputPipeW = open("/tmp/mixfuzz_input", O_RDWR);
-	outputPipeR = open("/tmp/mixfuzz_output", O_RDWR);
+	inputPipeW = open("/tmp/mixfuzz_input", O_RDWR | O_NONBLOCK);
+	outputPipeR = open("/tmp/mixfuzz_output", O_RDWR | O_NONBLOCK);
 #else
 	SECURITY_ATTRIBUTES saAttr;
 	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -165,9 +172,13 @@ int main(int argc, char** argv)
 		currentDir = TEXT(".\\");
 	}
 	glogger.debug1(TEXT("current dir: ") + currentDir);
-	//SetCurrentDirectory(currentDir.c_str());
+#ifndef __LINUX__
+	SetCurrentDirectory(currentDir.c_str());
+#endif
 
 	// 读取config文件	
+	if (taccess((currentDir + configFile).c_str(), 4) != 0)
+		glogger.warning(TEXT("can not find config file: ") + configFile);
 	webProcName = GetConfigString(currentDir + configFile, TEXT("WEBCONTENT_EXE"), webProcName);
 	parentProcName = GetConfigString(currentDir + configFile, TEXT("PARENT_EXE"), webProcName);
 	pageheap = GetConfigInt(currentDir + configFile, TEXT("PAGE_HEAP"), TEXT("1"));
@@ -186,6 +197,7 @@ int main(int argc, char** argv)
 	glogger.setDebugLevel(debug_level);
 	glogger.info(TEXT("symbol path: ") + symPath);
 	glogger.info(TEXT(" ouput path: ") + outPath);
+	glogger.info(TEXT(" fuzztarget: ") + fuzztarget);
 	if (outPath.back() != '\\')
 		outPath.append(TEXT("\\"));
 
@@ -194,15 +206,16 @@ int main(int argc, char** argv)
 
 	// 打开page heap, 关闭内存保护, ...
 	tstring sCommandLine;
+#ifndef __LINUX__
 	if (pageheap)
 	{
-		//sCommandLine = gflags_exe + TEXT(" /p /enable ") + webProcName + TEXT(" /full >nul");
-		//_tsystem(sCommandLine.c_str());
+		sCommandLine = gflags_exe + TEXT(" /p /enable ") + webProcName + TEXT(" /full >nul");
+		tsystem(sCommandLine.c_str());
 	}
 	else
 	{
-		//sCommandLine = gflags_exe + TEXT(" /p /disable ") + webProcName + TEXT(" /full >nul");
-		//_tsystem(sCommandLine.c_str());
+		sCommandLine = gflags_exe + TEXT(" /p /disable ") + webProcName + TEXT(" /full >nul");
+		tsystem(sCommandLine.c_str());
 	}
 
 	if (fuzztarget == TEXT("edge"))
@@ -219,7 +232,10 @@ int main(int argc, char** argv)
 			appPath = appPath.substr(0, appPath.rfind(TEXT(".exe ")) + 4);
 			appPath = TEXT("\"") + appPath + TEXT("\" ") + startop + TEXT(" ");
 		}
+		else
+			appPath = TEXT("\"") + appPath + TEXT("\" ");
 	}
+#endif
 
 	// fuzz循环
 	uint32_t nwrite, nread;
@@ -245,10 +261,13 @@ int main(int argc, char** argv)
 		killProcesses.push_back(parentProcName);
 		for (auto proc: killProcesses)
 		{
+			if (proc.empty())
+				continue;
+
 			glogger.debug1(TEXT("kill %s ..."), proc.c_str());
 			if (!TerminateAllProcess(proc.c_str()))
 			{
-				glogger.error(TEXT("Cannot kill %s, restart fuzz."), proc.c_str());
+				glogger.warning(TEXT("Cannot kill %s"), proc.c_str());
 				continue;
 			}
 		}
@@ -278,6 +297,7 @@ int main(int argc, char** argv)
 		}
 
 		// attach调试器	
+		bool attachSuccess = false;
 		glogger.info(TEXT("Attach ") + debugger);
 		glogger.info(TEXT("  -pid:") + to_tstring(procIDs[0]));
 #ifdef __LINUX__
@@ -292,8 +312,28 @@ int main(int argc, char** argv)
 			glogger.warning(TEXT("debugger quit: %d"), errno);
 			exit(0);
 		}
-		DebugCommand(inputPipeW, ("attach " + to_string(procIDs[0]) + "\n").c_str());
-		DebugCommand(inputPipeW, "c\n");
+
+		sCommandLine = "attach " + to_string(procIDs[0]) + "\n";
+		glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
+		DebugCommand(inputPipeW, sCommandLine.c_str());
+		do {
+			nread = GetDebugInfo(outputPipeR, rbuff, buffsize, 100);
+			if (nread == 0)
+				break;
+			
+			glogger.debug3(rbuff);
+			if (CheckEnds(rbuff, "(gdb) "))
+			{
+				attachSuccess = true;
+				break;
+			}
+		} while (true);
+		
+		if (!attachSuccess)
+		{
+			glogger.error(TEXT("Cannot attach debugger, restart fuzz."));
+			continue;
+		}
 #else
 		sCommandLine = TEXT("tools\\") + debugger + TEXT(" -o -p ") + to_tstring(procIDs[0]);
 		STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
@@ -311,38 +351,36 @@ int main(int argc, char** argv)
 		if (pi_cdb.hProcess)
 			CloseHandle(pi_cdb.hProcess);
 		if (pi_cdb.hThread)
-			CloseHandle(pi_cdb.hThread);
-#endif		
+			CloseHandle(pi_cdb.hThread);	
 
-		// attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
+		// windbg attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
 		for (size_t i = 1; i < procIDs.size(); i++)
 		{
 			glogger.info(TEXT("  -pid:") + to_tstring(procIDs[i]));
 
 			sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");
-			glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-			//WriteFile(inputPipeW, stringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+			glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
+			DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
 
-			glogger.debug1(TEXT("windbg command: g"));
-			//WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+			glogger.debug1(TEXT("debugger command: g"));
+			DebugCommand(inputPipeW, "g\n");
 
 			sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");
-			glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-			//WriteFile(inputPipeW, stringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+			glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
+			DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
 
-			glogger.debug1(TEXT("windbg command: ~*m"));
-			//WriteFile(inputPipeW, "~*m\n", 4, &nwrite, NULL);
+			glogger.debug1(TEXT("debugger command: ~*m"));
+			DebugCommand(inputPipeW, "~*m\n");
 
-			sCommandLine = TEXT(".childdbg1\n");
-			glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-			//WriteFile(inputPipeW, stringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
+			glogger.debug1(TEXT("debugger command: .childdbg1"));
+			DebugCommand(inputPipeW, ".childdbg1\n");
 		}
 
 		// debug信息：|*\n
 		if (debug_level > 0)
 		{
 			while (GetDebugInfo(outputPipeR, rbuff, buffsize, 100));
-			glogger.debug1(TEXT("windbg command: |*"));
+			glogger.debug1(TEXT("debugger command: |*"));
 			//WriteFile(inputPipeW, "|*\n", 3, &nwrite, NULL);
 			if (GetDebugInfo(outputPipeR, rbuff, buffsize) > 0)
 			{
@@ -362,12 +400,15 @@ int main(int argc, char** argv)
 
 		// 设置symbol path		
 		sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\";g;\n"); // 同时加入g; 防止后面出现异常
-		glogger.debug1(TEXT("windbg command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-		//WriteFile(inputPipeW, stringToString(sCommandLine).c_str(), (uint32_t)sCommandLine.size(), &nwrite, NULL);
-		GSleep(100);
+		glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
+		DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
+		GSleep(100);		
+#endif				
 
-		// 监听cdg循环
-		glogger.info(TEXT("Fuzzing ..."));
+		// 监听debugger输出信息
+		glogger.debug1(TEXT("debugger command: continue"));
+		DebugCommand(inputPipeW, cmd_continue.c_str()); // continue
+		glogger.info(TEXT("Fuzzing ..."));		
 		pbuff[0] = 0;
 		uint32_t idletime = 0;
 		while (true)
@@ -376,10 +417,6 @@ int main(int argc, char** argv)
 			procIDs_new = GetAllProcessId(webProcName.c_str(), procIDs);
 			if (!procIDs_new.empty())
 			{
-				// 暂停调试器
-				//SendMessage(,);
-
-				// attach剩余的pid:  .attach 0nxxx;g;|1s; ~*m; .childdbg 1;
 				for (size_t i = 0; i < procIDs_new.size(); i++)
 				{
 					glogger.warning(TEXT("find new pid:") + to_tstring(procIDs_new[i]));
@@ -426,8 +463,8 @@ int main(int argc, char** argv)
 				if (CheckC3Ret(pbuff))
 				{
 					glogger.warning(TEXT("break @ \"ret\", continue"));
-					glogger.debug1(TEXT("windbg command: g"));
-					//WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+					glogger.debug1(TEXT("debugger command: continue"));
+					DebugCommand(inputPipeW, cmd_continue.c_str()); 
 					pbuff[0] = 0;
 					continue;
 				}
@@ -436,8 +473,8 @@ int main(int argc, char** argv)
 				if (CheckCCInt3(pbuff))
 				{
 					glogger.warning(TEXT("break @ \"int 3\", continue"));
-					glogger.debug1(TEXT("windbg command: g"));
-					//WriteFile(inputPipeW, "g\n", 2, &nwrite, NULL);
+					glogger.debug1(TEXT("debugger command: continue"));
+					DebugCommand(inputPipeW, cmd_continue.c_str());
 					pbuff[0] = 0;
 					continue;
 				}
@@ -460,7 +497,7 @@ int main(int argc, char** argv)
 				tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
 
 				htmlPath = outPath + crashpos + TEXT("\\");
-				//CreateDirectory(htmlPath.c_str(), NULL);
+				CreateDir(htmlPath);
 
 				glogger.info(TEXT("crash = ") + crashpos);
 				if (crashpos != TEXT("unknown") &&
@@ -485,28 +522,40 @@ int main(int argc, char** argv)
 				strcat(logbuff, pbuff);
 
 				strcat(logbuff, "\n\n*** crash info ***\n");
-				glogger.debug1(TEXT("windbg command: r"));
-				//WriteFile(inputPipeW, "r\n", 2, &nwrite, NULL);
+#ifdef __LINUX__
+				glogger.debug1(TEXT("debugger command: i r"));
+				DebugCommand(inputPipeW, "i r\n");
+#else
+				glogger.debug1(TEXT("debugger command: r"));
+				DebugCommand(inputPipeW, "r\n");
+#endif
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
 				{
 					strcat(logbuff, pbuff);
 				}
 
 				strcat(logbuff, "\n\n*** stack tracing ***\n");
-				glogger.debug1(TEXT("windbg command: kb"));
-				//WriteFile(inputPipeW, "kb\n", 3, &nwrite, NULL);
+#ifdef __LINUX__
+				glogger.debug1(TEXT("debugger command: bt"));
+				DebugCommand(inputPipeW, "bt\n");
+#else
+				glogger.debug1(TEXT("debugger command: kb"));
+				DebugCommand(inputPipeW, "kb\n");
+#endif
 				while (GetDebugInfo(outputPipeR, pbuff, buffsize) > 0)
 				{
 					strcat(logbuff, pbuff);
 				}
 
 				strcat(logbuff, "\n\n*** module info ***\n");
+#ifdef __LINUX__
+#else
 				sCommandLine = TEXT("lmDvm ");
 				sCommandLine.append(crashpos.substr(0, crashpos.find_first_of('!'))); // mshtml!xxx__xxx+0x1234
-				glogger.debug1(TEXT("windbg command: ") + sCommandLine);
+				glogger.debug1(TEXT("debugger command: ") + sCommandLine);
 				sCommandLine.append(TEXT("\n"));
-				//WriteFile(inputPipeW, stringToString(sCommandLine).c_str(),
-				//	(uint32_t)sCommandLine.size(), &nwrite, NULL);
+				DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
+#endif				
 				if (GetDebugInfo(outputPipeR, pbuff, 2 * buffsize) > 0)
 				{
 					strcat(logbuff, pbuff);
@@ -521,12 +570,9 @@ int main(int argc, char** argv)
 				if (prevpocbuff) LogFile(outPath, crashpos, TEXT("_prev.html"), prevpocbuff, strlen(prevpocbuff), ct);
 
 				// 发送至服务端
-				if (mode == TEXT("client"))
-				{
-					if (pocbuff) SendFile(serverIP, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));
-					if (logbuff) SendFile(serverIP, 12220, ct, crashpos, 'L', logbuff, (int)strlen(logbuff));
-					if (prevpocbuff) SendFile(serverIP, 12220, ct, crashpos, 'P', pocbuff, (int)strlen(prevpocbuff));
-				}
+				if (pocbuff) SendFile(serverIP, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));
+				if (logbuff) SendFile(serverIP, 12220, ct, crashpos, 'L', logbuff, (int)strlen(logbuff));
+				if (prevpocbuff) SendFile(serverIP, 12220, ct, crashpos, 'P', pocbuff, (int)strlen(prevpocbuff));
 
 				break;
 			}
@@ -537,19 +583,26 @@ int main(int argc, char** argv)
 
 	delete[] rbuff;
 	delete[] pbuff;
-	//exit(_getch());
+	exit(fgetc(stdin));
 }
 
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 {
-	uint32_t nwrite, nread;
+	uint32_t nread;
 	char rbuff[1024 + 1];
 	GetDebugInfo(houtPipeR, rbuff, 1024, 500);
-	glogger.debug1(TEXT("windbg command: u eip L1"));
-	//WriteFile(hinPipeW, "u eip L1\n", 9, &nwrite, NULL);
+#ifdef __LINUX__
+	glogger.debug1(TEXT("debugger command: x/i $pc"));
+	DebugCommand(hinPipeW, "x/i $pc\n");
+#else
+	glogger.debug1(TEXT("debugger command: u eip L1"));
+	DebugCommand(hinPipeW, "u eip L1\n");
+#endif	
 	nread = GetDebugInfo(houtPipeR, rbuff, 1024);
 	if (nread == 0)
 		return tstring(TEXT("unknown"));
+	rbuff[nread] = 0;
+	glogger.debug2(StringToTString(string(rbuff)));
 
 	size_t i = 0, start = 0;
 	for (i = 0; i < strlen(rbuff); i++)
@@ -557,7 +610,10 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 		if (rbuff[i] == '!' || rbuff[i] == '+')
 		{
 			while (i > 0 && rbuff[--i] != '\n');
-			start = i;
+			if (rbuff[i] == '\n')
+				start = ++i;
+			else
+				start = i;
 			break;
 		}
 	}
@@ -646,10 +702,26 @@ bool CheckC3Ret(char* buff)
 	return true;
 }
 
+bool CheckEnds(const char * buff, const char* ends)
+{
+	if(buff == NULL || ends == NULL)
+		return false;
+	if (strlen(buff) == 0 || strlen(ends) == 0 ||
+		strlen(buff) < strlen(ends))
+		return false;
+
+	const char* back = buff + strlen(buff) - strlen(ends);
+	if (strcmp(back, ends) == 0)
+		return true;
+
+	return false;
+}
+
 int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 {
+	buff[0] = 0;
 	int count = timeout / 100;
-	uint32_t nread = 0;
+	int nread = 0;
 
 #ifdef __LINUX__
 	GSleep(timeout);
@@ -658,7 +730,7 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 	{
 		buff[nread] = 0;
 		return nread;
-}
+	}
 	else
 		return 0;
 #else
@@ -794,13 +866,13 @@ vector<uint32_t> GetAllProcessId(const tchar* pszProcessName, vector<uint32_t> i
 
 			if (EnumProcessModules(hProcess, &hMod,
 				sizeof(hMod), &cbNeeded))
-			if(false)
 			{
 				//Get the name of the exe file
 				GetModuleBaseName(hProcess, hMod, szEXEName,
 					sizeof(szEXEName) / sizeof(char));
 
-				if (tcscmp(szEXEName, pszProcessName) == 0)
+				
+				if (tcsicmp(szEXEName, pszProcessName) == 0)
 				{
 					bool find = false;
 					for (uint32_t id : ids)
@@ -883,166 +955,284 @@ bool StartProcess(const tstring& path, const tstring& arg)
 	PROCESS_INFORMATION pi_edge;
 	si_edge.dwFlags = STARTF_USESHOWWINDOW;
 	si_edge.wShowWindow = TRUE; //TRUE表示显示创建的进程的窗口	
-	bool bRet = CreateProcess(NULL, cmdline,
+	BOOL bRet = CreateProcess(NULL, cmdline,
 		NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si_edge, &pi_edge);
 	if (pi_edge.hProcess)
 		CloseHandle(pi_edge.hProcess);
 	if (pi_edge.hThread)
 		CloseHandle(pi_edge.hThread);
-	return bRet;
+	return bRet!=0;
 #endif
 }
 
-uint32_t GetFilecountInDir(tstring dir, tstring fileext)
-{
-	//_tfinddata_t FileInfo;
-	//string strfind = dir + ("\\*.") + fileext;
-	//intptr_t hh = _tfindfirst(strfind.c_str(), &FileInfo);
-	int count = 0;
-	//
-	//if (hh == -1L)
-	//{
-	//	return count;
-	//}
-	//
-	//do {
-	//	//判断是否有子目录
-	//	if (FileInfo.attrib & _A_SUBDIR)
-	//	{
-	//		continue;
-	//	}
-	//	else
-	//	{
-	//		count++;
-	//	}
-	//} while (_tfindnext(hh, &FileInfo) == 0);
-	//
-	//_findclose(hh);
-	return count;
-}
-
+#ifdef __LINUX__
 uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring& name, char* buff)
-{
-	//// Initialize Winsock
-	//WSADATA wsaData;
-	//int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	//if (iResult != NO_ERROR)
-	//{
-	//	glogger.error(TEXT("WSAStartup failed with error: %d"), WSAGetLastError());
-	//	return 0;
-	//}
-	//
-	//// socket
-	//SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	//if (sock == INVALID_SOCKET)
-	//{
-	//	glogger.error(TEXT("socket failed with error: %d"), WSAGetLastError());
-	//	WSACleanup();
-	//	return 0;
-	//}
-	//
+{	
+	// socket
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+	{
+		glogger.error(TEXT("socket failed with error: %d"), SOCKET_ERRNO);
+		return 0;
+	}
+	
 	////构建本地地址信息  
-	//struct sockaddr_in saServer;
-	//saServer.sin_family = AF_INET;
-	//saServer.sin_port = htons(port);
-	//saServer.sin_addr.S_un.S_addr = inet_addr(serverip.c_str());
-	//
-	//// 连接服务器
-	//int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
-	//if (ret == SOCKET_ERROR)
-	//{
-	//	closesocket(sock);
-	//	WSACleanup();
-	//	return 0;
-	//}
-	//
-	//// 发送请求
-	//string sendbuff = "GET /" + name +
-	//	" HTTP/1.1\r\nAccept: */*\r\nAccept-Encoding: gzip, deflate\r\nUser-Agent: Mozilla/5.0\r\nConnection: Keep-Alive\r\n\r\n";
-	//ret = send(sock, sendbuff.c_str(), sendbuff.size(), 0);
-	//if (ret != sendbuff.size())
-	//{
-	//	glogger.error(TEXT("send failed with error: %d"), WSAGetLastError());
-	//	closesocket(sock);
-	//	WSACleanup();
-	//	return 0;
-	//}
-	//
-	//// 接收数据
-	//ret = recv(sock, buff, MAX_SENDBUFF_SIZE, 0);
-	//if (ret > 0)
-	//{
-	//	buff[ret] = 0;
-	//	closesocket(sock);
-	//	WSACleanup();
-	//	return ret;
-	//}
-	//
-	//closesocket(sock);
-	//WSACleanup();
-	return 0;
+	struct sockaddr_in saServer;
+	memset(&saServer, 0,  sizeof(saServer));
+	saServer.sin_family = AF_INET;
+	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_addr.s_addr = inet_addr(serverip.c_str());
+	
+	// 连接服务器
+	int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
+	if (ret == SOCKET_ERROR)
+	{
+		close(sock);
+		return 0;
+	}
+	
+	// 发送请求
+	string sendbuff = "GET /" + name +
+		" HTTP/1.1\r\nAccept: */*\r\nAccept-Encoding: gzip, deflate\r\nUser-Agent: Mozilla/5.0\r\nConnection: Keep-Alive\r\n\r\n";
+	ret = send(sock, sendbuff.c_str(), sendbuff.size(), 0);
+	if (ret != sendbuff.size())
+	{
+		glogger.error(TEXT("send failed with error: %d"), SOCKET_ERRNO);
+		close(sock);
+		return 0;
+	}
+	
+	// 接收数据
+	ret = recv(sock, buff, MAX_SENDBUFF_SIZE, 0);
+	if (ret > 0)
+	{
+		buff[ret] = 0;
+	}
+	
+	close(sock);
+	return ret;
 }
 
 uint32_t SendFile(tstring serverip, uint16_t port,
 	time_t time, const tstring & crashpos, uint8_t type, char * data, int datalen)
 {
-	//if (data == NULL || datalen == 0)
+	if (data == NULL || datalen == 0)
 		return 0;
-	//
-	//// Initialize Winsock
-	//WSADATA wsaData;
-	//int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	//if (iResult != NO_ERROR)
-	//{
-	//	glogger.error(TEXT("WSAStartup failed with error: %d"), WSAGetLastError());
-	//	return 0;
-	//}
-	//
-	//// socket
-	//SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	//if (sock == INVALID_SOCKET)
-	//{
-	//	glogger.error(TEXT("socket failed with error: %d"), WSAGetLastError());
-	//	WSACleanup();
-	//	return 0;
-	//}
-	//
-	////构建本地地址信息  
-	//struct sockaddr_in saServer;
-	//saServer.sin_family = AF_INET;
-	//saServer.sin_port = htons(port);
-	//saServer.sin_addr.S_un.S_addr = inet_addr(serverip.c_str());
-	//
-	//// 连接服务器
-	//int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
-	//if (ret == SOCKET_ERROR)
-	//{
-	//	closesocket(sock);
-	//	WSACleanup();
-	//	return 0;
-	//}
-	//
-	//// 发送请求
-	//char* sendBuff = new char[sizeof(FILEPACK) + crashpos.size() + datalen];
-	//PFILEPACK filepacket = (PFILEPACK)sendBuff;
-	//filepacket->type = type;
-	//filepacket->time = (uint32_t)time;
-	//filepacket->dirLen = (uint32_t)crashpos.size();
-	//memcpy(filepacket->data, crashpos.c_str(), crashpos.size());
-	//memcpy(filepacket->data + crashpos.size(), data, datalen);
-	//
-	//ret = send(sock, sendBuff, (int)(sizeof(FILEPACK) + crashpos.size() + datalen), 0);
-	//delete[] sendBuff;
-	//closesocket(sock);
-	//WSACleanup();
-	//
-	//if (ret != sizeof(FILEPACK) + crashpos.size() + datalen)
-	//{
-	//	glogger.error(TEXT("send file error: %s"), crashpos.c_str());
-	//	return 0;
-	//}
-	//return ret;
+
+	// socket
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+	{
+		glogger.error(TEXT("socket failed with error: %d"), SOCKET_ERRNO);
+		return 0;
+	}
+
+	//构建本地地址信息  
+	struct sockaddr_in saServer;
+	saServer.sin_family = AF_INET;
+	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_addr.s_addr = inet_addr(serverip.c_str());
+
+	// 连接服务器
+	int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
+	if (ret == SOCKET_ERROR)
+	{
+		close(sock);
+		return 0;
+	}
+
+	// 发送请求
+	char* sendBuff = new char[sizeof(FILEPACK) + crashpos.size() + datalen];
+	PFILEPACK filepacket = (PFILEPACK)sendBuff;
+	filepacket->type = type;
+	filepacket->time = (uint32_t)time;
+	filepacket->dirLen = (uint32_t)crashpos.size();
+	memcpy(filepacket->data, crashpos.c_str(), crashpos.size());
+	memcpy(filepacket->data + crashpos.size(), data, datalen);
+
+	ret = send(sock, sendBuff, (int)(sizeof(FILEPACK) + crashpos.size() + datalen), 0);
+	delete[] sendBuff;
+	close(sock);
+
+	if (ret != sizeof(FILEPACK) + crashpos.size() + datalen)
+	{
+		glogger.error(TEXT("send file error: %s"), crashpos.c_str());
+		return 0;
+	}
+	return ret;
 }
+
+uint32_t GetFilecountInDir(tstring dir, tstring fileext)
+{
+	struct dirent *ptr;
+	DIR *odir;
+	odir = opendir(dir.c_str());
+	int count = 0;
+	while ((ptr = readdir(odir)) != NULL)
+	{
+		if (ptr->d_name[0] == '.')
+			continue;
+
+		char* back = ptr->d_name + strlen(ptr->d_name) - fileext.size();
+		if (strcmp(back, fileext.c_str()) == 0)
+		{
+			count++;
+		}
+	}
+	closedir(odir);
+	return count;
+}
+
+#else
+uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring& name, char* buff)
+{
+	// Initialize Winsock
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != NO_ERROR)
+	{
+		glogger.error(TEXT("WSAStartup failed with error: %d"), SOCKET_ERRNO);
+		return 0;
+	}
+
+	// socket
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+	{
+		glogger.error(TEXT("socket failed with error: %d"), SOCKET_ERRNO);
+		WSACleanup();
+		return 0;
+	}
+
+	////构建本地地址信息  
+	struct sockaddr_in saServer;
+	memset(&saServer, 0, sizeof(saServer));
+	saServer.sin_family = AF_INET;
+	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_addr.S_un.S_addr = inet_ttol(serverip.c_str());
+
+	// 连接服务器
+	int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
+	if (ret == SOCKET_ERROR)
+	{
+		closesocket(sock);
+		WSACleanup();
+		return 0;
+	}
+
+	// 发送请求
+	string sendbuff = "GET /" + TStringToString(name) +
+		" HTTP/1.1\r\nAccept: */*\r\nAccept-Encoding: gzip, deflate\r\nUser-Agent: Mozilla/5.0\r\nConnection: Keep-Alive\r\n\r\n";
+	ret = send(sock, sendbuff.c_str(), sendbuff.size(), 0);
+	if (ret != sendbuff.size())
+	{
+		glogger.error(TEXT("send failed with error: %d"), SOCKET_ERRNO);
+		closesocket(sock);
+		WSACleanup();
+		return 0;
+	}
+
+	// 接收数据
+	ret = recv(sock, buff, MAX_SENDBUFF_SIZE, 0);
+	if (ret > 0)
+	{
+		buff[ret] = 0;
+	}
+
+	closesocket(sock);
+	WSACleanup();
+	return ret;
+}
+
+uint32_t SendFile(tstring serverip, uint16_t port,
+	time_t time, const tstring & crashpos, uint8_t type, char * data, int datalen)
+{
+	if (data == NULL || datalen == 0)
+		return 0;
+
+	// Initialize Winsock
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != NO_ERROR)
+	{
+		glogger.error(TEXT("WSAStartup failed with error: %d"), SOCKET_ERRNO);
+		return 0;
+	}
+
+	// socket
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+	{
+		glogger.error(TEXT("socket failed with error: %d"), SOCKET_ERRNO);
+		WSACleanup();
+		return 0;
+	}
+
+	//构建本地地址信息  
+	struct sockaddr_in saServer;
+	saServer.sin_family = AF_INET;
+	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_addr.S_un.S_addr = inet_ttol(serverip.c_str());
+
+	// 连接服务器
+	int ret = connect(sock, (sockaddr *)&saServer, sizeof(saServer));
+	if (ret == SOCKET_ERROR)
+	{
+		closesocket(sock);
+		WSACleanup();
+		return 0;
+	}
+
+	// 发送请求
+	char* sendBuff = new char[sizeof(FILEPACK) + crashpos.size() + datalen];
+	PFILEPACK filepacket = (PFILEPACK)sendBuff;
+	filepacket->type = type;
+	filepacket->time = (uint32_t)time;
+	filepacket->dirLen = (uint32_t)crashpos.size();
+	memcpy(filepacket->data, crashpos.c_str(), crashpos.size());
+	memcpy(filepacket->data + crashpos.size(), data, datalen);
+
+	ret = send(sock, sendBuff, (int)(sizeof(FILEPACK) + crashpos.size() + datalen), 0);
+	delete[] sendBuff;
+	closesocket(sock);
+	WSACleanup();
+
+	if (ret != sizeof(FILEPACK) + crashpos.size() + datalen)
+	{
+		glogger.error(TEXT("send file error: %s"), crashpos.c_str());
+		return 0;
+	}
+	return ret;
+}
+
+uint32_t GetFilecountInDir(tstring dir, tstring fileext)
+{
+	_tfinddata_t FileInfo;
+	tstring strfind = dir + TEXT("\\*.") + fileext;
+	intptr_t hh = _tfindfirst(strfind.c_str(), &FileInfo);
+	int count = 0;
+	
+	if (hh == -1L)
+	{
+		return count;
+	}
+	
+	do {
+		//判断是否有子目录
+		if (FileInfo.attrib & _A_SUBDIR)
+		{
+			continue;
+		}
+		else
+		{
+			count++;
+		}
+	} while (_tfindnext(hh, &FileInfo) == 0);
+	
+	_findclose(hh);
+	return count;
+}
+#endif
 
 uint32_t LogFile(const tstring &outpath, const tstring &crashpos,
 	const tstring &endstr, char* data, int datalen, time_t ct)
