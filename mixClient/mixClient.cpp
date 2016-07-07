@@ -334,6 +334,12 @@ int main(int argc, char** argv)
 			glogger.error(TEXT("Cannot attach debugger, restart fuzz."));
 			continue;
 		}
+
+		// 设置symbol path	
+		sCommandLine = TEXT("set solib-search-path ") + symPath + TEXT("\n"); // 同时加入g; 防止后面出现异常
+		glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
+		DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
+		GSleep(1000);
 #else
 		sCommandLine = TEXT("tools\\") + debugger + TEXT(" -o -p ") + to_tstring(procIDs[0]);
 		STARTUPINFO si_cdb = { sizeof(STARTUPINFO) };
@@ -1047,7 +1053,7 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 	filepacket->type = type;
 	filepacket->time = (uint32_t)time;
 	filepacket->dirLen = (uint32_t)crashpos.size();
-	memcpy(filepacket->data, crashpos.c_str(), crashpos.size());
+	memcpy(filepacket->data, TStringToString(crashpos).c_str(), crashpos.size());
 	memcpy(filepacket->data + crashpos.size(), data, datalen);
 
 	ret = send(sock, sendBuff, (int)(sizeof(FILEPACK) + crashpos.size() + datalen), 0);
@@ -1189,7 +1195,7 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 	filepacket->type = type;
 	filepacket->time = (uint32_t)time;
 	filepacket->dirLen = (uint32_t)crashpos.size();
-	memcpy(filepacket->data, crashpos.c_str(), crashpos.size());
+	memcpy(filepacket->data, TStringToString(crashpos).c_str(), crashpos.size());
 	memcpy(filepacket->data + crashpos.size(), data, datalen);
 
 	ret = send(sock, sendBuff, (int)(sizeof(FILEPACK) + crashpos.size() + datalen), 0);

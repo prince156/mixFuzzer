@@ -7,6 +7,7 @@
 #include <tlhelp32.h>
 #include <Psapi.h>
 #include <io.h>
+#include <tchar.h>
 #include "tstream.h"
 
 #include "common.h"
