@@ -160,7 +160,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <Text Include="makefile" />
-    <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\common\common.h" />

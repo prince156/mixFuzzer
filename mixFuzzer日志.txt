@@ -21,9 +21,16 @@ fuzz标识说明：
 [ff]: 随机function
 {ff}: 随机function（svg）
 
-[2016-07-03]
-* template目录下的字典文件中可以使用%prop等关键字 
+[2016-07-09 v1.4]
+* template目录下的字典文件（xx.txt）中可以使用%prop等关键字 
 * template目录下可以自定义values字典
+* 创建mixClient，在linux和window中编译成功，并简单测试
+* 增加KILL_PROCESS配置项，用户可指定额外需要终止的进程（空格分隔）
+* 增加fuzz时间上限：500秒，超时则重启fuzz
+* 调整client失效超时：600秒
+* 调整终止explorer.exe进程的策略：默认每隔10次kill一次
+* 重构mixFuzzer.cpp和mixClient.cpp，将相同功能统一到function.h
+* 为配合mixClient在linux中编译，调整common中部分代码
 
 [2016-06-29 v1.3]
 * 生成效率：3800/s
