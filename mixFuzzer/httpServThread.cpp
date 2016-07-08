@@ -103,11 +103,14 @@ DWORD WINAPI SocketThread(PVOID para)
     }
 	else if (strstr(m_requestUrl, "current.html") != NULL)
 	{
-		tstring remoteIP = inet_ltot(pPara->remoteIP);
-		glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
-		glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
-		glogger.screen(TEXT("[") + remoteIP + TEXT("] find crash, wait for poc ...\n"));
-		glogger.setDefaultColor();
+		if (pPara->para->mode == TEXT("server"))
+		{
+			tstring remoteIP = inet_ltot(pPara->remoteIP);
+			glogger.setDefaultColor(gcommon::PRINT_COLOR::BRIGHT_RED);
+			glogger.insertCurrentTime(TEXT("   [yyyy-MM-dd HH:mm:ss] "));
+			glogger.screen(TEXT("[") + remoteIP + TEXT("] find crash, wait for poc ...\n"));
+			glogger.setDefaultColor();
+		}
 
 		if (pPara->currentHtml != NULL && strlen(pPara->currentHtml) > 0)
 		{

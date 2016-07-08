@@ -658,13 +658,17 @@ bool TerminateAllProcess(const tchar* pszProcessName)
 			string s = "/bin/kill -9 " + to_string(pid);
 			system(s.c_str());
 #else
-			void* hProcess = OpenProcess(
+			HANDLE hProcess = OpenProcess(
 				PROCESS_TERMINATE |
 				PROCESS_QUERY_LIMITED_INFORMATION |
 				SYNCHRONIZE, FALSE, pid);
 			if (hProcess != NULL)
 			{
-				TerminateProcess(hProcess, 0);
+				if (TerminateProcess(hProcess, 0) != 0)
+				{
+					WaitForSingleObject(hProcess, 1000);
+				}
+				CloseHandle(hProcess);
 			}
 #endif	
 		}
