@@ -59,6 +59,12 @@
     <ClInclude Include="..\..\common\glogger.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="function.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="others.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\mixFuzzer日志.txt" />

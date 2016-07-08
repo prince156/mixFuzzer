@@ -1,17 +1,10 @@
 #pragma once
 #include <map>
 #include "gthread.h"
+#include "others.h"
 
 using namespace gcommon;
 using namespace std;
-
-typedef struct _tmplnode
-{
-    uint32_t offset;
-    char *data;
-    uint32_t type;
-    struct _tmplnode *next;
-}TMPL_NODE, *PTMPL_NODE;
 
 typedef struct _htmlgen_para:_thread_para
 {	

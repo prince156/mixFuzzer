@@ -87,13 +87,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>$(ProjectName)_x86_v1.3c</TargetName>
+    <TargetName>$(ProjectName)_x86_v1.4</TargetName>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>$(ProjectName)_x64_v1.3c</TargetName>
+    <TargetName>$(ProjectName)_x64_v1.4</TargetName>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
   </PropertyGroup>
@@ -192,9 +192,11 @@
     <ClInclude Include="..\..\common\glogger.h" />
     <ClInclude Include="..\..\common\gthread.h" />
     <ClInclude Include="fileRecvThread.h" />
+    <ClInclude Include="function.h" />
     <ClInclude Include="fuzzstr.h" />
     <ClInclude Include="htmlGenThread.h" />
     <ClInclude Include="httpServThread.h" />
+    <ClInclude Include="others.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\mixFuzzer日志.txt" />

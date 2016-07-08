@@ -5,9 +5,6 @@
 using namespace std;
 using namespace gcommon;
 
-const static size_t MAX_SENDBUFF_SIZE = 1024 * 200;
-
-
 typedef struct _httpservpara:_thread_para
 {
 	HANDLE semHtmlbuff_p = NULL;

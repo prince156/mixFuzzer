@@ -1,19 +1,9 @@
 #pragma once
 #include "gthread.h"
+#include "others.h"
 
 using namespace gcommon;
 using namespace std;
-
-
-#pragma pack(push,1)
-typedef struct _file_pack
-{
-	uint32_t time;
-	uint32_t dirLen;
-	byte type;
-	char data[0];
-}FILEPACK, *PFILEPACK;
-#pragma pack(pop)
 
 typedef struct _filerecvpara :_thread_para
 {

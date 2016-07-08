@@ -2,8 +2,7 @@
 #include <Ws2tcpip.h>
 #include "httpServThread.h"
 #include "common.h"
-
-#pragma comment(lib,"Ws2_32.lib")
+#include "others.h"
 
 extern GLogger glogger;
 
