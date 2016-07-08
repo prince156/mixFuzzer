@@ -58,7 +58,7 @@ uint32_t GetFilecountInDir(tstring dir, tstring fileext);
 uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring& name, char* buff);
 uint32_t SendFile(tstring serverip, uint16_t port,
 	time_t time, const tstring &crashpos, uint8_t type, char* data, int datalen);
-uint32_t LogFile(const tstring &outpath, const tstring &crashpos,
+uint32_t LogFile(const tstring &outpath, const tstring &crashpos, const tstring& slash,
 	const tstring &endstr, char* data, int datalen, time_t ct);
 bool IsWow64();
 void GSleep(uint32_t ms);
@@ -86,10 +86,11 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 	size_t i = 0, start = 0;
 	for (i = 0; i < strlen(rbuff); i++)
 	{
-		if (rbuff[i] == '!' || rbuff[i] == '+')
+		if (rbuff[i] == '!' || rbuff[i] == '+' || rbuff[i] == ':')
 		{
-			while (i > 0 && rbuff[--i] != '\n');
-			if (rbuff[i] == '\n')
+			while (i > 0 && rbuff[i] != '\n' && rbuff[i] != '\r' && rbuff[i] != '<')
+				i--;
+			if (rbuff[i] == '\n' || rbuff[i] == '\r' || rbuff[i] == '<')
 				start = ++i;
 			else
 				start = i;
@@ -104,9 +105,16 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 
 	for (i = start; i < strlen(rbuff); i++)
 	{
-		if (rbuff[i] == '\n' && i > 0)
+#ifdef __LINUX__
+		if (rbuff[i] == '>' && i > 0)
 		{
-			rbuff[i - 1] = 0;
+			rbuff[i] = 0;
+			break;
+		}
+#endif
+		if ((rbuff[i] == '\n' || rbuff[i] == '\r') && i > 0)
+		{
+			rbuff[i] = 0;
 			break;
 		}
 
@@ -129,9 +137,14 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 			rbuff[i] = ']';
 		else if (rbuff[i] == '|')
 			rbuff[i] = '-';
+
+		if (rbuff[i] < 33 || rbuff[i] > 125)
+			rbuff[i] = ' ';
 	}
 
-	return StringToTString(string(rbuff + start));
+	tstring crashpos = StringToTString(string(rbuff + start));
+	RemoveAllChar(crashpos, ' ');
+	return crashpos;
 }
 
 bool CheckCCInt3(char* buff)
@@ -254,8 +267,8 @@ bool InitDebugPipe(HANDLE * inputPipeR, HANDLE * inputPipeW, HANDLE * outputPipe
 	{
 		return false;
 	}
-	inputPipeW = open("/tmp/mixfuzz_input", O_RDWR | O_NONBLOCK);
-	outputPipeR = open("/tmp/mixfuzz_output", O_RDWR | O_NONBLOCK);
+	*inputPipeW = open("/tmp/mixfuzz_input", O_RDWR | O_NONBLOCK);
+	*outputPipeR = open("/tmp/mixfuzz_output", O_RDWR | O_NONBLOCK);
 #else
 	SECURITY_ATTRIBUTES saAttr;
 	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -311,9 +324,9 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	sCommandLine = "attach " + to_string(procIDs[0]) + "\n";
 	glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
 	DebugCommand(inputPipeW, sCommandLine.c_str());
+	char* rbuff = new char[1025];
 	do {
-		nread = GetDebugInfo(outputPipeR, rbuff, buffsize, 100);
-		if (nread == 0)
+		if (GetDebugInfo(outputPipeR, rbuff, 1024, 100) == 0)
 			break;
 
 		glogger.debug3(rbuff);
@@ -323,7 +336,7 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 			break;
 		}
 	} while (true);
-
+	delete[] rbuff;
 	if (!attachSuccess)
 	{
 		return false;
@@ -413,6 +426,8 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 	}
 
 #ifdef __LINUX__
+	if (CheckEnds(rbuff, "(gdb) "))
+		return 1;
 #else
 	// windbg
 	if (rbuff[bufflen - 2] == '>' && rbuff[bufflen - 1] == ' ')
@@ -638,7 +653,7 @@ bool TerminateAllProcess(const tchar* pszProcessName)
 	{
 		if (pid != 0)
 		{
-			glogger.debug2(TEXT("  kill %d"), pid);
+			glogger.debug2(TEXT("  -pid:%d"), pid);
 #ifdef __LINUX__
 			string s = "/bin/kill -9 " + to_string(pid);
 			system(s.c_str());
@@ -699,6 +714,7 @@ bool StartProcess(const tstring& path, const tstring& arg)
 		CloseHandle(pi_edge.hThread);
 	return bRet != 0;
 #endif
+	return false;
 }
 
 #ifdef __LINUX__
@@ -716,7 +732,7 @@ uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring
 	struct sockaddr_in saServer;
 	memset(&saServer, 0, sizeof(saServer));
 	saServer.sin_family = AF_INET;
-	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_port = gcommon::g_htons(port);
 	saServer.sin_addr.s_addr = inet_addr(serverip.c_str());
 
 	// 连接服务器
@@ -739,7 +755,7 @@ uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring
 	}
 
 	// 接收数据
-	ret = recv(sock, buff, MAX_SENDBUFF_SIZE, 0);
+	ret = recv(sock, buff, MAX_SENDBUFF_SIZE, MSG_WAITALL);
 	if (ret > 0)
 	{
 		buff[ret] = 0;
@@ -766,7 +782,7 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 	//构建本地地址信息  
 	struct sockaddr_in saServer;
 	saServer.sin_family = AF_INET;
-	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_port = gcommon::g_htons(port);
 	saServer.sin_addr.s_addr = inet_addr(serverip.c_str());
 
 	// 连接服务器
@@ -879,7 +895,7 @@ void LoudTemplate(vector<PTMPL_NODE> & templnodes, vector<char*> &templs, int ma
 					current->next = new TMPL_NODE();
 					current = current->next;
 					current->offset = i;
-					current->type = gcommon::ntohl(*(uint32_t*)(htmlTempl + i));
+					current->type = gcommon::g_ntohl(*(uint32_t*)(htmlTempl + i));
 					current->data = htmlTempl + i + 4;
 					current->next = NULL;
 					htmlTempl[i] = 0;
@@ -916,7 +932,7 @@ uint32_t GetHTMLFromServer(const tstring& serverip, uint16_t port, const tstring
 	struct sockaddr_in saServer;
 	memset(&saServer, 0, sizeof(saServer));
 	saServer.sin_family = AF_INET;
-	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_port = gcommon::g_htons(port);
 	saServer.sin_addr.S_un.S_addr = inet_ttol(serverip.c_str());
 
 	// 连接服务器
@@ -979,7 +995,7 @@ uint32_t SendFile(tstring serverip, uint16_t port,
 	//构建本地地址信息  
 	struct sockaddr_in saServer;
 	saServer.sin_family = AF_INET;
-	saServer.sin_port = gcommon::htons(port);
+	saServer.sin_port = gcommon::g_htons(port);
 	saServer.sin_addr.S_un.S_addr = inet_ttol(serverip.c_str());
 
 	// 连接服务器
@@ -1042,22 +1058,22 @@ uint32_t GetFilecountInDir(tstring dir, tstring fileext)
 }
 #endif
 
-uint32_t LogFile(const tstring &outpath, const tstring &crashpos,
+uint32_t LogFile(const tstring &outpath, const tstring &crashpos, const tstring& slash,
 	const tstring &endstr, char* data, int datalen, time_t ct)
 {
 	if (data == NULL || datalen == 0)
 		return 0;
 
-	tstring filepath = outpath + crashpos + TEXT("\\") + to_tstring(ct) + endstr;
+	tstring filepath = outpath + crashpos + slash + to_tstring(ct) + endstr;
 	FILE* htmlFile = tfopen(filepath.c_str(), TEXT("w"));
 	if (htmlFile == NULL)
 	{
-		glogger.warning(TEXT("can not create html file: ") + crashpos + TEXT("\\") + to_tstring(ct) + endstr);
-		filepath = outpath + TEXT("unknown\\") + to_tstring(ct) + endstr;
+		glogger.warning(TEXT("can not create html file: ") + crashpos + slash + to_tstring(ct) + endstr);
+		filepath = outpath + TEXT("unknown") + slash +  to_tstring(ct) + endstr;
 		htmlFile = tfopen(filepath.c_str(), TEXT("w"));
 		if (htmlFile == NULL)
 		{
-			glogger.error(TEXT("can not create html file: unknown\\") + to_tstring(ct) + endstr);
+			glogger.error(TEXT("can not create html file: unknown") + slash + to_tstring(ct) + endstr);
 			return 0;
 		}
 	}

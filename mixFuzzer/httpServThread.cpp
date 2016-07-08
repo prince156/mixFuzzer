@@ -288,8 +288,8 @@ bool HttpServThread::InitSocket()
 	//构建本地地址信息  
 	struct sockaddr_in saServer;
 	saServer.sin_family = AF_INET; 
-	saServer.sin_port = gcommon::htons(m_para->port);  
-	saServer.sin_addr.S_un.S_addr = htonl(INADDR_ANY); 											   
+	saServer.sin_port = gcommon::g_htons(m_para->port);
+	saServer.sin_addr.S_un.S_addr = INADDR_ANY; 											   
 	iResult = bind(m_sock, (struct sockaddr *)&saServer, sizeof(saServer));
 	if (iResult != NO_ERROR)
 	{

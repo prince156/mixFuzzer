@@ -9,7 +9,7 @@ common.o: common.cpp common.h tstream.h
 glogger.o: glogger.cpp glogger.h tstream.h
 	@g++ $(CFLAG) -c glogger.cpp
 
-mixClient.o: mixClient.cpp
+mixClient.o: mixClient.cpp function.h others.h
 	@g++ $(CFLAG) -c mixClient.cpp
 
 .PHONY: clean

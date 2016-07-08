@@ -368,9 +368,9 @@ int main(int argc, tchar** argv)
 				time_t ct = time(NULL);
 
 				// 写入文件
-				if (pocbuff) LogFile(outPath, crashpos, TEXT(".html"), pocbuff, strlen(pocbuff), ct);
-				if (logbuff) LogFile(outPath, crashpos, TEXT(".log"), logbuff, strlen(logbuff), ct);
-				if (prevpocbuff) LogFile(outPath, crashpos, TEXT("_prev.html"), prevpocbuff, strlen(prevpocbuff), ct);
+				if (pocbuff) LogFile(outPath, crashpos, TEXT("\\"), TEXT(".html"), pocbuff, strlen(pocbuff), ct);
+				if (logbuff) LogFile(outPath, crashpos, TEXT("\\"), TEXT(".log"), logbuff, strlen(logbuff), ct);
+				if (prevpocbuff) LogFile(outPath, crashpos, TEXT("\\"), TEXT("_prev.html"), prevpocbuff, strlen(prevpocbuff), ct);
 
 				// 发送至服务端
 				if (mode == TEXT("client"))

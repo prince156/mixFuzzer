@@ -224,3 +224,4 @@ ModelManifest.xml
 /Output/.DS_Store
 /Output/fuzzsafari.zip
 *.zip
+/Output/linux

@@ -42,10 +42,12 @@ int main(int argc, char** argv)
 #ifdef __LINUX__
 	tstring debugger = TEXT("gdb");
 	string cmd_continue = "c\n";
+	tstring slash = TEXT("/");
 #else
 	tstring debugger = IsWow64() ? CDB_X64 : CDB_X86;
 	tstring gflags_exe = IsWow64() ? GFLAGS_X64 : GFLAGS_X86;
 	string cmd_continue = "g\n";
+	tstring slash = TEXT("\\");
 #endif // 
 
 	// 初始化glogger	
@@ -78,7 +80,7 @@ int main(int argc, char** argv)
 	if (currentDir.empty())
 	{
 		glogger.warning(TEXT("can not get current dir, use default dir"));
-		currentDir = TEXT(".\\");
+		currentDir = TEXT(".") + slash;
 	}
 	glogger.debug1(TEXT("current dir: ") + currentDir);
 #ifndef __LINUX__
@@ -109,15 +111,17 @@ int main(int argc, char** argv)
 	glogger.info(TEXT("symbol path: ") + symPath);
 	glogger.info(TEXT(" ouput path: ") + outPath);
 	glogger.info(TEXT(" fuzztarget: ") + fuzztarget);
-	if (outPath.back() != '\\')
-		outPath.append(TEXT("\\"));
+	if (outPath.back() != slash.front())
+		outPath += slash;
 
 	// 创建crash目录
 	CreateDir(outPath);
-
+	
+#ifndef __LINUX__
 	// 打开page heap, 关闭内存保护, ...
 	PageHeapSwitch(pageheap, webProcName, gflags_exe);
 
+	// 处理appPath
 	if (fuzztarget == TEXT("edge"))
 	{
 		webProcName = TEXT("MicrosoftEdgeCP.exe");
@@ -135,6 +139,9 @@ int main(int argc, char** argv)
 		else
 			appPath = TEXT("\"") + appPath + TEXT("\" ");
 	}
+#endif
+
+	
 
 	// fuzz循环
 	uint32_t fuzzcount = 0;
@@ -271,7 +278,7 @@ int main(int argc, char** argv)
 				// 获取崩溃位置作为目录名
 				tstring crashpos = GetCrashPos(inputPipeW, outputPipeR);
 
-				htmlPath = outPath + crashpos + TEXT("\\");
+				htmlPath = outPath + crashpos + slash;
 				CreateDir(htmlPath);
 
 				glogger.info(TEXT("crash = ") + crashpos);
@@ -298,9 +305,9 @@ int main(int argc, char** argv)
 				time_t ct = time(NULL);
 
 				// 写入文件
-				if (pocbuff) LogFile(outPath, crashpos, TEXT(".html"), pocbuff, strlen(pocbuff), ct);
-				if (logbuff) LogFile(outPath, crashpos, TEXT(".log"), logbuff, strlen(logbuff), ct);
-				if (prevpocbuff) LogFile(outPath, crashpos, TEXT("_prev.html"), prevpocbuff, strlen(prevpocbuff), ct);
+				if (pocbuff) LogFile(outPath, crashpos, slash, TEXT(".html"), pocbuff, strlen(pocbuff), ct);
+				if (logbuff) LogFile(outPath, crashpos, slash, TEXT(".log"), logbuff, strlen(logbuff), ct);
+				if (prevpocbuff) LogFile(outPath, crashpos, slash, TEXT("_prev.html"), prevpocbuff, strlen(prevpocbuff), ct);
 
 				// 发送至服务端
 				if (pocbuff) SendFile(serverIP, 12220, ct, crashpos, 'H', pocbuff, (int)strlen(pocbuff));

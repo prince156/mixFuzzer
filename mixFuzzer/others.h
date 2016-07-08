@@ -11,7 +11,7 @@
 #define GFLAGS_X86 TEXT("tools\\gflags_x86.exe")
 #define GFLAGS_X64 TEXT("tools\\gflags_x64.exe")
 
-const static size_t MAX_SENDBUFF_SIZE = 1024 * 200;
+const static size_t MAX_SENDBUFF_SIZE = 204800;
 
 #pragma pack(push,1)
 typedef struct _file_pack
