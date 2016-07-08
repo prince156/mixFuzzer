@@ -99,6 +99,7 @@ int main(int argc, tchar** argv)
     outPath = GetConfigString(currentDir + configFile, TEXT("OUT_PATH"), outPath);
     mode = GetConfigString(currentDir + configFile, TEXT("MODE"), mode);
     serverIP = GetConfigString(currentDir + configFile, TEXT("WEB_SERVER_IP"), serverIP);
+	killProc = GetConfigString(currentDir + configFile, TEXT("KILL_PROCESS"));
 	
 	glogger.setDebugLevel(debug_level);
     glogger.info(TEXT("symbol path: ") + symPath);

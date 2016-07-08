@@ -115,6 +115,8 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 		if ((rbuff[i] == '\n' || rbuff[i] == '\r') && i > 0)
 		{
 			rbuff[i] = 0;
+			if (rbuff[i - 1] == ':') // windbg
+				rbuff[i - 1] = 0;			
 			break;
 		}
 
