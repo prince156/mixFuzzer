@@ -327,9 +327,15 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
 	DebugCommand(inputPipeW, sCommandLine.c_str());
 	char* rbuff = new char[1025];
+	bool wait = false;
 	do {
 		if (GetDebugInfo(outputPipeR, rbuff, 1024, 100) == 0)
-			break;
+		{
+			if (!wait) // 使用wait，防止误认为attach失败
+				break;
+			else
+				continue;
+		}
 
 		glogger.debug3(rbuff);
 		if (CheckEnds(rbuff, "(gdb) "))
@@ -337,6 +343,12 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 			attachSuccess = true;
 			break;
 		}
+		if (CheckEnds(rbuff, "..."))
+		{
+			wait = true;
+			continue;
+		}
+		wait = false;
 	} while (true);
 	delete[] rbuff;
 	if (!attachSuccess)
