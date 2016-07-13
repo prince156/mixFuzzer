@@ -348,7 +348,7 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	char* rbuff = new char[1025];
 	bool wait = false;
 	do {
-		if (GetDebugInfo(outputPipeR, rbuff, 1024, 100) == 0)
+		if (GetDebugInfo(outputPipeR, rbuff, 1024, 200) == 0)
 		{
 			if (!wait) // 使用wait，防止误认为attach失败
 				break;

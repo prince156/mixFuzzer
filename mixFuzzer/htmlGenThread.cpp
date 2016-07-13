@@ -834,24 +834,24 @@ string HtmlGenThread::GenHtmlLine(int id)
 }
 
 string HtmlGenThread::GenJsFunction(const string &name)
-{
-	// select template line
-	string templ;
-	if (random(0, 100) < 20 && m_dicfiles.size() > 0)
-	{
-		uint32_t dicindex = random(0, m_dicfiles.size());
-		auto dici = m_dicfiles.begin();
-		while(dicindex--)
-			dici++;
-		templ = GetRandomItem((*dici).second);
-	}
-	else
-		templ = GetRandomItem(m_jslines);
-
+{	
+	string templ;	
 	string funcstr = "function " + name + "(){try{\n";
 	uint32_t count = random(10, 30);
 	for (uint32_t i = 0; i < count; i++)
 	{
+		// select template line
+		if (random(0, 100) < 20 && m_dicfiles.size() > 0)
+		{
+			uint32_t dicindex = random(0, m_dicfiles.size());
+			auto dici = m_dicfiles.begin();
+			while (dicindex--)
+				dici++;
+			templ = GetRandomItem((*dici).second);
+		}
+		else
+			templ = GetRandomItem(m_jslines);
+
 		funcstr += "    ";
 		funcstr += GenJsLine(templ);
 		funcstr += "\n";
