@@ -288,8 +288,7 @@ int main(int argc, tchar** argv)
 		}
 
         // ¼àÌýcdgÑ­»·
-		glogger.debug1(TEXT("debugger command: g"));
-		DebugCommand(inputPipeW, "g\n"); // running
+		DebugCommand(inputPipeW, TEXT("g\n")); // running
         glogger.info(TEXT("Fuzzing ..."));
 		uint32_t idletime = 0;
 		time_t fuzztime = time(NULL);
@@ -329,8 +328,7 @@ int main(int argc, tchar** argv)
 			}
 			else if (debugstate == 3)
 			{
-				glogger.debug1(TEXT("debugger command: g"));
-				DebugCommand(inputPipeW, "g\n");
+				DebugCommand(inputPipeW, TEXT("g\n"));
 				continue;
 			}
 			else if (debugstate == 1)

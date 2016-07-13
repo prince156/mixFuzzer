@@ -41,12 +41,12 @@ int main(int argc, char** argv)
 
 #ifdef __LINUX__
 	tstring debugger = TEXT("gdb");
-	string cmd_continue = "c\n";
+	tstring cmd_continue = TEXT("c\n");
 	tstring slash = TEXT("/");
 #else
 	tstring debugger = IsWow64() ? CDB_X64 : CDB_X86;
 	tstring gflags_exe = IsWow64() ? GFLAGS_X64 : GFLAGS_X86;
-	string cmd_continue = "g\n";
+	tstring cmd_continue = TEXT("g\n");
 	tstring slash = TEXT("\\");
 #endif // 
 
@@ -224,8 +224,7 @@ int main(int argc, char** argv)
 		}		
 
 		// º‡Ã˝debugger ‰≥ˆ–≈œ¢
-		glogger.debug1(TEXT("debugger command: continue"));
-		DebugCommand(inputPipeW, cmd_continue.c_str()); // running
+		DebugCommand(inputPipeW, cmd_continue); // running
 		glogger.info(TEXT("Fuzzing ..."));
 		uint32_t idletime = 0;
 		time_t fuzztime = time(NULL);
@@ -265,7 +264,6 @@ int main(int argc, char** argv)
 			}
 			else if (debugstate == 3)
 			{				
-				glogger.debug1(TEXT("debugger command: continue"));
 				DebugCommand(inputPipeW, cmd_continue.c_str());
 				continue;
 			}

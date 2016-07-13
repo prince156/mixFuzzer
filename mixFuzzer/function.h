@@ -13,12 +13,14 @@ typedef int HANDLE;
 #define SOCKET_ERROR (-1)   
 #define INVALID_SOCKET (-1)
 #define SOCKET_ERRNO errno
+#define LAST_ERRNO errno
 #else
 #include <WinSock2.h>
 #include <io.h>
 #include <tchar.h>
 #include <Psapi.h>
 #define SOCKET_ERRNO WSAGetLastError()
+#define LAST_ERRNO GetLastError()
 #endif   
 
 #include <string>
@@ -45,8 +47,8 @@ int GetCrashInfo(char* logbuff, uint32_t logbuffsize, const tstring& crashpos,
 	char* rbuff, uint32_t rbuffsize,
 	HANDLE outputPipeR, HANDLE inputPipeW);
 void CreateDir(const tstring& path);
-int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout = 2000);
-void DebugCommand(HANDLE hPipe, const char* cmd);
+int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout = 1000);
+bool DebugCommand(HANDLE hPipe, const tstring& cmd);
 tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR);
 bool CheckCCInt3(char* buff);
 bool CheckC3Ret(char* buff);
@@ -71,11 +73,9 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 	char rbuff[1024 + 1];
 	GetDebugInfo(houtPipeR, rbuff, 1024, 500);
 #ifdef __LINUX__
-	glogger.debug1(TEXT("debugger command: x/i $pc"));
-	DebugCommand(hinPipeW, "x/i $pc\n");
+	DebugCommand(hinPipeW, TEXT("x/i $pc\n"));
 #else
-	glogger.debug1(TEXT("debugger command: u eip L1"));
-	DebugCommand(hinPipeW, "u eip L1\n");
+	DebugCommand(hinPipeW, TEXT("u eip L1\n"));
 #endif	
 	nread = GetDebugInfo(houtPipeR, rbuff, 1024);
 	if (nread == 0)
@@ -115,7 +115,7 @@ tstring GetCrashPos(HANDLE hinPipeW, HANDLE houtPipeR)
 		if ((rbuff[i] == '\n' || rbuff[i] == '\r') && i > 0)
 		{
 			rbuff[i] = 0;
-			if (rbuff[i - 1] == ':') // windbg
+			if (rbuff[i - 1] == '_') // windbg
 				rbuff[i - 1] = 0;			
 			break;
 		}
@@ -248,14 +248,20 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 	return nread;
 }
 
-void DebugCommand(HANDLE hPipe, const char * cmd)
+bool DebugCommand(HANDLE hPipe, const tstring& cmd)
 {
+	glogger.debug1(TEXT("debugger command: ") + cmd.substr(0, cmd.size() - 1));
+	string command = TStringToString(cmd);
 #ifdef __LINUX__
-	write(hPipe, cmd, strlen(cmd));
+	if (write(hPipe, command.c_str(), command.size()) != -1)
+		return true;
 #else
 	DWORD nwrite;
-	WriteFile(hPipe, cmd, strlen(cmd), &nwrite, NULL);
+	if (WriteFile(hPipe, command.c_str(), command.size(), &nwrite, NULL))
+		return true;
 #endif
+	glogger.warning(TEXT("write debug command error: %d"), LAST_ERRNO);
+	return false;
 }
 
 bool InitDebugPipe(HANDLE * inputPipeR, HANDLE * inputPipeW, HANDLE * outputPipeR, HANDLE * outputPipeW)
@@ -324,7 +330,6 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	}
 
 	sCommandLine = "attach " + to_string(procIDs[0]) + "\n";
-	glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
 	DebugCommand(inputPipeW, sCommandLine.c_str());
 	char* rbuff = new char[1025];
 	do {
@@ -346,7 +351,6 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 
 	// 设置symbol path	
 	sCommandLine = TEXT("set solib-search-path ") + symPath + TEXT("\n"); // 同时加入g; 防止后面出现异常
-	glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
 	DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
 	GSleep(1000);
 #else
@@ -373,27 +377,17 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 		glogger.info(TEXT("  -pid:") + to_tstring(procIDs[i]));
 
 		sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");
-		glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-		DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
-
-		glogger.debug1(TEXT("debugger command: g"));
-		DebugCommand(inputPipeW, "g\n");
-
+		DebugCommand(inputPipeW, sCommandLine);
+		DebugCommand(inputPipeW, TEXT("g\n"));
 		sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");
-		glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-		DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
-
-		glogger.debug1(TEXT("debugger command: ~*m"));
-		DebugCommand(inputPipeW, "~*m\n");
-
-		glogger.debug1(TEXT("debugger command: .childdbg1"));
-		DebugCommand(inputPipeW, ".childdbg1\n");
+		DebugCommand(inputPipeW, sCommandLine);
+		DebugCommand(inputPipeW, TEXT("~*m\n"));
+		DebugCommand(inputPipeW, TEXT(".childdbg1\n"));
 	}
 
 	// 设置symbol path		
 	sCommandLine = TEXT(".sympath \"") + symPath + TEXT("\"\n"); // 同时加入g; 防止后面出现异常
-	glogger.debug1(TEXT("debugger command: ") + sCommandLine.substr(0, sCommandLine.size() - 1));
-	DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
+	DebugCommand(inputPipeW, sCommandLine);
 	GSleep(100);
 #endif
 	return true;
@@ -411,11 +405,14 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 	static uint32_t idletime = 0;
 	uint32_t nread = GetDebugInfo(outputPipeR, rbuff, size, 1000);
 	if (nread > 0)
+	{
+		glogger.debug3(StringToTString(string(rbuff)));
 		idletime = 0;
+	}
 	rbuff[nread] = 0;
 
 	size_t bufflen = strlen(rbuff);
-	if (bufflen < 2)
+	if (bufflen < 3)
 	{
 		idletime += 1000;
 		if (idletime >= deadTimeout)
@@ -432,7 +429,9 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 		return 1;
 #else
 	// windbg
-	if (rbuff[bufflen - 2] == '>' && rbuff[bufflen - 1] == ' ')
+	if (rbuff[bufflen - 3] != '-' &&  // 防止 firefox 误报 （ xxx -> yyy）
+		rbuff[bufflen - 2] == '>' && 
+		rbuff[bufflen - 1] == ' ')
 	{
 		// 进程异常
 		if (CheckC3Ret(rbuff))
@@ -474,14 +473,13 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 	if (logbuffsize > strlen(logbuff) + 21)
 		strcat(logbuff, "\n\n*** crash info ***\n");
 #ifdef __LINUX__
-	glogger.debug1(TEXT("debugger command: i r"));
-	DebugCommand(inputPipeW, "i r\n");
+	DebugCommand(inputPipeW, TEXT("i r\n"));
 #else
-	glogger.debug1(TEXT("debugger command: r"));
-	DebugCommand(inputPipeW, "r\n");
+	DebugCommand(inputPipeW, TEXT("r\n"));
 #endif
-	if (GetDebugInfo(outputPipeR, rbuff, rbuffsize) > 0)
+	while (GetDebugInfo(outputPipeR, rbuff, rbuffsize) > 0)
 	{
+		glogger.debug2(StringToTString(string(rbuff)));
 		if (logbuffsize > strlen(logbuff) + strlen(rbuff))
 			strcat(logbuff, rbuff);
 	}
@@ -489,14 +487,13 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 	if (logbuffsize > strlen(logbuff) + 24)
 		strcat(logbuff, "\n\n*** stack tracing ***\n");
 #ifdef __LINUX__
-	glogger.debug1(TEXT("debugger command: bt"));
-	DebugCommand(inputPipeW, "bt\n");
+	DebugCommand(inputPipeW, TEXT("bt\n"));
 #else
-	glogger.debug1(TEXT("debugger command: kb"));
-	DebugCommand(inputPipeW, "kb\n");
+	DebugCommand(inputPipeW, TEXT("kb\n"));
 #endif
 	while (GetDebugInfo(outputPipeR, rbuff, rbuffsize) > 0)
 	{
+		glogger.debug2(StringToTString(string(rbuff)));
 		if (logbuffsize > strlen(logbuff) + strlen(rbuff))
 			strcat(logbuff, rbuff);
 	}
@@ -507,12 +504,12 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 #else
 	tstring sCommandLine = TEXT("lmDvm ");
 	sCommandLine.append(crashpos.substr(0, crashpos.find_first_of('!'))); // mshtml!xxx__xxx+0x1234
-	glogger.debug1(TEXT("debugger command: ") + sCommandLine);
 	sCommandLine.append(TEXT("\n"));
-	DebugCommand(inputPipeW, TStringToString(sCommandLine).c_str());
+	DebugCommand(inputPipeW, sCommandLine);
 #endif				
-	if (GetDebugInfo(outputPipeR, rbuff, rbuffsize) > 0)
+	while (GetDebugInfo(outputPipeR, rbuff, rbuffsize) > 0)
 	{
+		glogger.debug2(StringToTString(string(rbuff)));
 		if (logbuffsize > strlen(logbuff) + strlen(rbuff))
 			strcat(logbuff, rbuff);
 	}
