@@ -7,6 +7,7 @@
 #include "fileRecvThread.h"
 
 #pragma comment(lib,"Ws2_32.lib")
+#pragma comment(lib,"User32.lib")
 
 #define SOFT_NAME TEXT("mixFuzzer")
 #define SOFT_VER TEXT("v1.4")
@@ -280,8 +281,10 @@ int main(int argc, tchar** argv)
         }
 
         // attach调试器	
+		uint32_t dbgpid;
 		glogger.info(TEXT("Attach ") + debugger + TEXT(" ..."));
-		if (!AttachDebugger(procIDs, debugger, symPath, inputPipeR, inputPipeW, outputPipeR, outputPipeW))
+		dbgpid = AttachDebugger(procIDs, debugger, symPath, inputPipeR, inputPipeW, outputPipeR, outputPipeW);
+		if (dbgpid == 0)
 		{
 			glogger.error(TEXT("Cannot attach debugger, restart fuzz."));
 			continue;
@@ -302,20 +305,29 @@ int main(int argc, tchar** argv)
 			}
 
             // 查看是否存在新的进程
-            procIDs_new = GetAllProcessId(webProcName.c_str(), procIDs);
-            if (!procIDs_new.empty())
-            {
-                for (size_t i = 0; i < procIDs_new.size(); i++)
-                {
-                    glogger.warning(TEXT("find new pid:") + to_tstring(procIDs_new[i]));
-                    procIDs.push_back(procIDs_new[i]);
-                }
-                procIDs_new.clear();
-				glogger.info(TEXT("restart fuzz ..."));
-				if (waitTime < 3 * minWaitTime)
-					waitTime += 500;
-				break;
-            }
+			bool restart = false;
+			procIDs_new = GetAllProcessId(webProcName.c_str(), procIDs);
+			if (!procIDs_new.empty())
+			{
+				for (size_t i = 0; i < procIDs_new.size(); i++)
+				{
+					glogger.warning(TEXT("find new pid:") + to_tstring(procIDs_new[i]));
+					procIDs.push_back(procIDs_new[i]);
+					if (!AttachNewPid(dbgpid, procIDs_new[i], outputPipeR, inputPipeW))
+					{
+						restart = true;
+						break;
+					}
+				}
+				procIDs_new.clear();
+				if (restart)
+				{
+					if (waitTime < 3 * minWaitTime)
+						waitTime += 500;
+					glogger.info(TEXT("restart fuzz ..."));
+					break;
+				}
+			}
 
             // 获取调试器输出
 			int debugstate = CheckDebuggerOutput(rbuff, buffsize, outputPipeR, inputPipeW, deadTimeout);

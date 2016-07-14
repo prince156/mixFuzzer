@@ -23,6 +23,7 @@ typedef int HANDLE;
 #define LAST_ERRNO GetLastError()
 #endif   
 
+#include <signal.h>
 #include <string>
 #include <string.h>  
 #include <vector>
@@ -40,8 +41,9 @@ using namespace gcommon;
 
 bool InitDebugPipe(HANDLE *inputPipeR, HANDLE *inputPipeW, HANDLE *outputPipeR, HANDLE *outputPipeW);
 void PageHeapSwitch(bool pageheap, const tstring& procname, const tstring& gflagpath);
-bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, const tstring& symPath,
+uint32_t AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, const tstring& symPath,
 	HANDLE inputPipeR, HANDLE inputPipeW, HANDLE outputPipeR, HANDLE outputPipeW);
+bool AttachNewPid(uint32_t dbgpid, uint32_t newpid, HANDLE outputPipeR, HANDLE inputPipeW);
 int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE inputPipeW, uint32_t deadTimeout);
 int GetCrashInfo(char* logbuff, uint32_t logbuffsize, const tstring& crashpos,
 	char* rbuff, uint32_t rbuffsize,
@@ -214,23 +216,16 @@ bool CheckEnds(const char * buff, const char* ends)
 int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 {
 	buff[0] = 0;
-	int count = timeout / 100;
+	int count = timeout < 10 ? 1 : timeout / 10;
 	int nread = 0;
 
 #ifdef __LINUX__
 	GSleep(timeout);
-	nread = (uint32_t)read(hPipe, buff, size);
-	if (nread > 0)
-	{
-		buff[nread] = 0;
-		return nread;
-	}
-	else
-		return 0;
+	nread = (uint32_t)read(hPipe, buff, size);	
 #else
 	while (count--)
 	{
-		GSleep(100);
+		GSleep(10);
 		if (!PeekNamedPipe(hPipe, buff, size, (DWORD*)&nread, 0, 0))
 			continue;
 		if (nread == size)
@@ -238,13 +233,13 @@ int GetDebugInfo(HANDLE hPipe, char* buff, int size, int timeout)
 	}
 	if (nread == 0)
 		return 0;
-
 	nread = 0;
 	ReadFile(hPipe, buff, size, (DWORD*)&nread, NULL);
-	if (nread>0)
-		buff[nread] = 0;
 #endif
 
+	buff[nread] = 0;
+	if(nread > 0)
+		glogger.debug3(StringToTString(string(buff)));
 	return nread;
 }
 
@@ -255,10 +250,10 @@ bool DebugCommand(HANDLE inputPipeW, HANDLE outputPipeR, const tstring& cmd)
 	// µ»¥˝debuggerø’œ–
 	static char rbuff[1024];
 	int wait = 0;
-	while (GetDebugInfo(outputPipeR, rbuff, 1023, 100) > 0)
+	while (GetDebugInfo(outputPipeR, rbuff, 1023, 10) > 0)
 	{
-		wait += 100;
-		if (wait > 2000)
+		wait += 10;
+		if (wait > 1000)
 		{
 			glogger.warning(TEXT("write debug command error: timeout"));
 			return false;
@@ -324,14 +319,16 @@ void PageHeapSwitch(bool pageheap, const tstring& procname, const tstring& gflag
 #endif
 }
 
-bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, const tstring& symPath,
+uint32_t AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, const tstring& symPath,
 	HANDLE inputPipeR, HANDLE inputPipeW, HANDLE outputPipeR, HANDLE outputPipeW)
 {
+	uint32_t dbgpid = 0;
 	bool attachSuccess = false;
 	tstring sCommandLine;
 	glogger.info(TEXT("  -pid:") + to_tstring(procIDs[0]));
 #ifdef __LINUX__
-	if (fork() == 0)
+	dbgpid = fork();
+	if (dbgpid == 0)
 	{
 		int fd_input = open("/tmp/mixfuzz_input", O_RDWR);
 		int fd_output = open("/tmp/mixfuzz_output", O_RDWR);
@@ -342,6 +339,7 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 		glogger.warning(TEXT("debugger quit: %d"), errno);
 		exit(0);
 	}
+	glogger.debug1(TEXT("debugger pid:") + to_tstring(dbgpid));
 
 	sCommandLine = "attach " + to_string(procIDs[0]) + "\n";
 	DebugCommand(inputPipeW, outputPipeR, sCommandLine.c_str());
@@ -356,7 +354,6 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 				continue;
 		}
 
-		glogger.debug3(rbuff);
 		if (CheckEnds(rbuff, "(gdb) "))
 		{
 			attachSuccess = true;
@@ -372,7 +369,7 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	delete[] rbuff;
 	if (!attachSuccess)
 	{
-		return false;
+		return 0;
 	}
 
 	// …Ë÷√symbol path	
@@ -388,10 +385,12 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	si_cdb.hStdError = outputPipeW;
 	PROCESS_INFORMATION pi_cdb = {};
 	if (!CreateProcess(NULL, (LPTSTR)sCommandLine.c_str(),
-		NULL, NULL, TRUE, 0, NULL, NULL, &si_cdb, &pi_cdb))
+		NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, NULL, &si_cdb, &pi_cdb))
 	{
-		return false;
+		return 0;
 	}
+	dbgpid = pi_cdb.dwProcessId;
+	glogger.debug1(TEXT("debugger pid:") + to_tstring(dbgpid));	
 	if (pi_cdb.hProcess)
 		CloseHandle(pi_cdb.hProcess);
 	if (pi_cdb.hThread)
@@ -405,7 +404,7 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 		sCommandLine = TEXT(".attach 0n") + to_tstring(procIDs[i]) + TEXT("\n");
 		DebugCommand(inputPipeW, outputPipeR, sCommandLine);
 		DebugCommand(inputPipeW, outputPipeR, TEXT("g\n"));
-		sCommandLine = TEXT("|") + to_tstring(i) + TEXT("s\n");
+		sCommandLine = TEXT("|~[0n") + to_tstring(procIDs[i]) + TEXT("]s\n");
 		DebugCommand(inputPipeW, outputPipeR, sCommandLine);
 		DebugCommand(inputPipeW, outputPipeR, TEXT("~*m\n"));
 		DebugCommand(inputPipeW, outputPipeR, TEXT(".childdbg1\n"));
@@ -416,7 +415,35 @@ bool AttachDebugger(const vector<uint32_t> & procIDs, const tstring& debugger, c
 	DebugCommand(inputPipeW, outputPipeR, sCommandLine);
 	GSleep(100);
 #endif
-	return true;
+	return dbgpid;
+}
+
+inline bool AttachNewPid(uint32_t dbgpid, uint32_t newpid, HANDLE outputPipeR, HANDLE inputPipeW)
+{
+	static char rbuff[1024];
+#ifdef __LINUX__
+	// do nothing
+	return false;
+#else
+	while (GetDebugInfo(outputPipeR, rbuff, 1023, 100) > 0);
+	GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, dbgpid);
+	while (GetDebugInfo(outputPipeR, rbuff, 1023, 100) > 0)
+	{
+		if (!CheckEnds(rbuff, "> "))
+			continue;
+		tstring sCommandLine = TEXT(".attach 0n") + to_tstring(newpid) + TEXT("\n");
+		DebugCommand(inputPipeW, outputPipeR, sCommandLine);
+		DebugCommand(inputPipeW, outputPipeR, TEXT("g\n"));
+		sCommandLine = TEXT("|~[0n") + to_tstring(newpid) + TEXT("]s\n");
+		DebugCommand(inputPipeW, outputPipeR, sCommandLine);
+		DebugCommand(inputPipeW, outputPipeR, TEXT("~*m\n"));
+		DebugCommand(inputPipeW, outputPipeR, TEXT(".childdbg1\n"));
+		DebugCommand(inputPipeW, outputPipeR, TEXT("g\n"));
+		return true;
+	}
+#endif // __LINUX__
+	int error = LAST_ERRNO;
+	return false;
 }
 
 // 0=normal, 1=crash, 2=restart, 3=continue
@@ -432,7 +459,6 @@ int CheckDebuggerOutput(char* rbuff, uint32_t size, HANDLE outputPipeR, HANDLE i
 	uint32_t nread = GetDebugInfo(outputPipeR, rbuff, size, 1000);
 	if (nread > 0)
 	{
-		glogger.debug3(StringToTString(string(rbuff)));
 		idletime = 0;
 	}
 	rbuff[nread] = 0;
