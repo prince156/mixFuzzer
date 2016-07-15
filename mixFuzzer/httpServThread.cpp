@@ -71,6 +71,7 @@ DWORD WINAPI SocketThread(PVOID para)
     }
     memcpy(m_requestUrl, url_start + 1, url_end - url_start - 1);
     m_requestUrl[url_end - url_start - 1] = 0;
+	
 
     // 根据URL,设置数据头    
     if (strstr(m_requestUrl, ".svg") != NULL)
@@ -123,12 +124,20 @@ DWORD WINAPI SocketThread(PVOID para)
 			dataLen = strlen(sendData);
 		}
 	}
-    else if (strlen(m_requestUrl) != 1)// "/"
+    else if (strlen(m_requestUrl) != 1)
     {
-        
+		char* tmp = strrchr(m_requestUrl, '\\');
+		if (tmp == NULL)
+			tmp = strrchr(m_requestUrl, '/');
+		else
+			tmp++;
+		if (tmp == NULL)
+			tmp = m_requestUrl;
+		else
+			tmp++;
         for each (RESOURCE var in *pPara->resources)
         {
-            if (var.name == m_requestUrl + 1)
+            if (var.name == tmp)
             {
                 sendData = var.data;
                 dataLen = var.size;
@@ -140,9 +149,10 @@ DWORD WINAPI SocketThread(PVOID para)
         {            
             sendHead = m_htmlHead;
             sendData = m_errorpage;
+			dataLen = strlen(m_errorpage);
         }
     }
-    else //样本
+    else //样本 "/"
     {
         sendData = pPara->para->htmlBuff;        
     }
@@ -151,12 +161,12 @@ DWORD WINAPI SocketThread(PVOID para)
     {
         sendHead = m_htmlHead;
         sendData = m_errorpage;
+		dataLen = strlen(m_errorpage);
     }
 
     // 其他资源请求，直接发送
     if (sendData != pPara->para->htmlBuff)
     {
-		dataLen = strlen(sendData);
         memcpy(m_sendBuff, sendHead, headLen);
         memcpy(m_sendBuff + headLen, sendData, dataLen);
         m_sendBuff[headLen + dataLen] = 0;

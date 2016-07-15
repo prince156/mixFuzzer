@@ -37,7 +37,7 @@ public:
 	~HttpServThread();
 
 private:	
-	const string m_resourceDir = "resources";
+	const string m_resourceDir = "template\\resources";
 	PHTTPSERV_THREAD_PARA m_para;
 	SOCKET m_sock;	
 	vector<RESOURCE> m_resources;
