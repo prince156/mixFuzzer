@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mixFuzzer", "mixFuzzer\mixFuzzer.vcxproj", "{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}"
 EndProject
@@ -9,38 +9,54 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "serverTest", "serverTest\se
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mixClient", "mixClient\mixClient.vcxproj", "{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}"
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "mixClientPy", "mixClientPy\mixClientPy.pyproj", "{BD2FA9AC-EFCD-4966-BD34-99539239153E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Debug|Any CPU.ActiveCfg = Debug|Win32
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Debug|x64.ActiveCfg = Debug|x64
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Debug|x64.Build.0 = Debug|x64
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Debug|x86.ActiveCfg = Debug|Win32
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Debug|x86.Build.0 = Debug|Win32
+		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Release|Any CPU.ActiveCfg = Release|Win32
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Release|x64.ActiveCfg = Release|x64
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Release|x64.Build.0 = Release|x64
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Release|x86.ActiveCfg = Release|Win32
 		{7FAB68A3-E08C-4985-BF31-2B65D88C1E06}.Release|x86.Build.0 = Release|Win32
+		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Debug|Any CPU.ActiveCfg = Debug|Win32
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Debug|x64.ActiveCfg = Debug|x64
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Debug|x64.Build.0 = Debug|x64
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Debug|x86.ActiveCfg = Debug|Win32
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Debug|x86.Build.0 = Debug|Win32
+		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Release|Any CPU.ActiveCfg = Release|Win32
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Release|x64.ActiveCfg = Release|x64
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Release|x64.Build.0 = Release|x64
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Release|x86.ActiveCfg = Release|Win32
 		{EE8CDF2B-0789-409F-AD35-7375CDD401A4}.Release|x86.Build.0 = Release|Win32
+		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Debug|Any CPU.ActiveCfg = Debug|Win32
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Debug|x64.ActiveCfg = Debug|x64
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Debug|x64.Build.0 = Debug|x64
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Debug|x86.ActiveCfg = Debug|Win32
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Debug|x86.Build.0 = Debug|Win32
+		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Release|Any CPU.ActiveCfg = Release|Win32
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Release|x64.ActiveCfg = Release|x64
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Release|x64.Build.0 = Release|x64
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Release|x86.ActiveCfg = Release|Win32
 		{2F2FD2A1-A2FA-46BF-8BCB-A4895CE979D0}.Release|x86.Build.0 = Release|Win32
+		{BD2FA9AC-EFCD-4966-BD34-99539239153E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD2FA9AC-EFCD-4966-BD34-99539239153E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BD2FA9AC-EFCD-4966-BD34-99539239153E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BD2FA9AC-EFCD-4966-BD34-99539239153E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD2FA9AC-EFCD-4966-BD34-99539239153E}.Release|x64.ActiveCfg = Release|Any CPU
+		{BD2FA9AC-EFCD-4966-BD34-99539239153E}.Release|x86.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
