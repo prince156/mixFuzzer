@@ -21,6 +21,16 @@ fuzz标识说明：
 [ff]: 随机function
 {ff}: 随机function（svg）
 
+[2016-08-02 v1.5]
+* 新增mixClient的Python版本，在osx上简单测试通过
+* 修复mixFuzzer未读取配置KILL_PROCESS
+* 修复server模式错误显示crash信息
+* 修复linux环境下经常attach debugger失败的问题
+* linux上增加attach超时时间，防止误认为attach失败
+* windows下发现新pid后直接attach，而不是重启fuzz
+* 修复无法获取资源文件的bug
+* 优化程序，提高样本生成效率
+
 [2016-07-09 v1.4]
 * template目录下的字典文件（xx.txt）中可以使用%prop等关键字 
 * template目录下可以自定义values字典

@@ -102,5 +102,5 @@ class moniter():
 
 
 if __name__=='__main__':
-    print '************** wellcome to mixClientPy v1.0 **************'
+    print '************** wellcome to mixClientPy v1.5 **************'
     moniter().run()

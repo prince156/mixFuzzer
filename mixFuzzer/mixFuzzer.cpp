@@ -10,7 +10,7 @@
 #pragma comment(lib,"User32.lib")
 
 #define SOFT_NAME TEXT("mixFuzzer")
-#define SOFT_VER TEXT("v1.4")
+#define SOFT_VER TEXT("v1.5")
 
 int main(int argc, tchar** argv)
 {

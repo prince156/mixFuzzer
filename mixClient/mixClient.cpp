@@ -9,7 +9,7 @@
 #endif
 
 #define SOFT_NAME TEXT("mixClient")
-#define SOFT_VER TEXT("v1.4")
+#define SOFT_VER TEXT("v1.5")
 
 int main(int argc, char** argv)
 {

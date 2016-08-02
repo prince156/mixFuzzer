@@ -865,41 +865,49 @@ string HtmlGenThread::GenJsLine(const string &templ)
 	if (templ.empty())
 		return string();
 
-	string newline;
-	string type;
-	for (auto i = templ.begin(); i < templ.end(); i++)
+	static char ptype[128];
+	static char pnewline[1024]; // warning 
+	const char* ptempl = templ.c_str();
+	size_t len = templ.size();
+	size_t ni = 0, typei = 0;
+	
+	for (size_t i = 0; i < len; i++)
 	{
-		if ((*i) == '%')
+		if (ptempl[i] == '%')
 		{
 			do
 			{
-				if ((i + 1) == templ.end())
+				if (i == len - 1)
 					break;
 
-				if ((*(i + 1) >= '0' && *(i + 1) <= '9') ||
-					(*(i + 1) >= 'a' && *(i + 1) <= 'z') ||
-					(*(i + 1) >= 'A' && *(i + 1) <= 'Z'))
+				if ((ptempl[i + 1] >= '0' && ptempl[i + 1] <= '9') ||
+					(ptempl[i + 1] >= 'a' && ptempl[i + 1] <= 'z') ||
+					(ptempl[i + 1] >= 'A' && ptempl[i + 1] <= 'Z'))
 				{
-					type += *(++i);
+					ptype[typei++] = ptempl[++i];
 				}
 				else
 					break;
 			} while (true);
+			ptype[typei] = 0;
 
-			if (!type.empty())
+			if (strlen(ptype))
 			{
-				newline += GenFromDicType(type);
-				type.clear();
+				string value = GenFromDicType(string(ptype));
+				memcpy(pnewline + ni, value.c_str(), value.size());
+				ni += value.size();
+				typei = 0;
 			}
 			else
 			{
-				newline += '%';
+				pnewline[ni++] = '%';
 			}
 			continue;
 		}
-		newline += *i;
+		pnewline[ni++] = ptempl[i];
 	}
-	return newline;
+	pnewline[ni] = 0;
+	return string(pnewline);
 }
 
 string HtmlGenThread::GenJsLine_Property(const map<string, vector<PROPERTY>>& obj_props,
@@ -1173,42 +1181,50 @@ string HtmlGenThread::GetRandomValue(const vector<string>& values, const string 
 
 string HtmlGenThread::GetRandomObject(const string & objType, const string dft)
 {
-	string object = GetRandomItem(m_objects, "id_0");
-	string newobject;
-	string type;
-	for (auto i = object.begin(); i < object.end(); i++)
+	string object = GetRandomItem(m_objects, "id_0");	
+	const char* pobject = object.c_str();
+	static char ptype[128];
+	static char pnewobject[1024];
+	size_t ni = 0, typei = 0;
+	size_t len = object.size();
+
+	for (size_t i = 0; i < object.size(); i++)
 	{
-		if ((*i) == '%')
+		if (pobject[i] == '%')
 		{
 			do
 			{				
-				if ((i + 1) == object.end())
+				if (i == len - 1)
 					break;
 				
-				if ((*(i + 1) >= '0' && *(i + 1) <= '9') ||
-					(*(i + 1) >= 'a' && *(i + 1) <= 'z') ||
-					(*(i + 1) >= 'A' && *(i + 1) <= 'Z'))
+				if ((pobject[i + 1] >= '0' && pobject[i + 1] <= '9') ||
+					(pobject[i + 1] >= 'a' && pobject[i + 1] <= 'z') ||
+					(pobject[i + 1] >= 'A' && pobject[i + 1] <= 'Z'))
 				{
-					type += *(++i);
+					ptype[typei++] = pobject[++i];
 				}
 				else
 					break;
 			} while (true);
+			ptype[typei] = 0;
 
-			if (!type.empty())
+			if (strlen(ptype))
 			{
-				newobject += GenFromDicType(type);
-				type.clear();
+				string value = GenFromDicType(string(ptype));
+				memcpy(pnewobject + ni, value.c_str(), value.size());
+				ni += value.size();
+				typei = 0;
 			}
 			else
 			{
-				newobject += '%';				
+				pnewobject[ni++] = '%';
 			}
 			continue;
 		}
-		newobject += *i;
+		pnewobject[ni++] = pobject[i];
 	}
-	return newobject;
+	pnewobject[ni] = 0;
+	return string(pnewobject);
 }
 
 /********************************************************************

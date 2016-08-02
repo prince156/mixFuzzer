@@ -34,7 +34,7 @@ int main(int argc, char** argv)
     //构建地址信息  
     struct sockaddr_in saServer;
     saServer.sin_family = AF_INET;
-    saServer.sin_port = g_htons(port);
+    saServer.sin_port = gcommon::g_htons(port);
     saServer.sin_addr.S_un.S_addr = gcommon::inet_ttol(ip);    
 
     int count = 0;

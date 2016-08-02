@@ -87,13 +87,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
-    <TargetName>$(ProjectName)_x86_v1.4b</TargetName>
+    <TargetName>$(ProjectName)_x86_v1.5</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)\Output\$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
-    <TargetName>$(ProjectName)_x64_v1.4b</TargetName>
+    <TargetName>$(ProjectName)_x64_v1.5</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

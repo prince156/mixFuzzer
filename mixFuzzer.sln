@@ -12,6 +12,9 @@ EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "mixClientPy", "mixClientPy\mixClientPy.pyproj", "{BD2FA9AC-EFCD-4966-BD34-99539239153E}"
 EndProject
 Global
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
